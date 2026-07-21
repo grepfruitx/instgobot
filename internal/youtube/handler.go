@@ -139,6 +139,9 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 }
 
 func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, username *string) bool {
+	activeJobs.Add(1)
+	defer activeJobs.Done()
+
 	if cached, ok, _ := h.st.GetCachedFileID(url, audioCacheType, 0); ok {
 		_, err := h.b.SendAudio(ctx, &bot.SendAudioParams{ChatID: chatID, Audio: &models.InputFileString{Data: cached}, Caption: config.BotTag, DisableNotification: true})
 		if err != nil {
@@ -196,6 +199,9 @@ func fetchThumbnail(ctx context.Context, url string) []byte {
 }
 
 func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url string, quality int, username *string, notifyFallback bool) bool {
+	activeJobs.Add(1)
+	defer activeJobs.Done()
+
 	sent := false
 
 	err := telegramapi.WithChatActionErr(ctx, h.b, chatID, models.ChatActionUploadVideo, func() error {

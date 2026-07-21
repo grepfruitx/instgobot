@@ -18,7 +18,13 @@ var (
 
 	activeDownloadsMu sync.Mutex
 	activeDownloads   = map[int64]struct{}{}
+
+	activeJobs sync.WaitGroup
 )
+
+func WaitForActiveDownloads() {
+	activeJobs.Wait()
+}
 
 func hasEnoughDiskSpace() bool {
 	var stat unix.Statfs_t
