@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,7 +16,13 @@ import (
 const MaxFileSize = 50 * 1024 * 1024
 const maxGroupSize = 40 * 1024 * 1024
 
-var httpClient = &http.Client{}
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 30 * time.Second}).DialContext(ctx, "tcp4", addr)
+		},
+	},
+}
 
 type cancelOnCloseBody struct {
 	io.ReadCloser

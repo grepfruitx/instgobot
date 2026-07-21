@@ -21,9 +21,9 @@ type Config struct {
 
 	TelegramAPIID      int    `env:"TELEGRAM_API_ID,required"`
 	TelegramAPIHash    string `env:"TELEGRAM_API_HASH,required"`
-	UserbotSessionPath string `env:"USERBOT_SESSION_PATH" envDefault:"/data/userbot.session"`
+	UserbotSessionPath string `env:"USERBOT_SESSION_PATH" envDefault:"/root/instgobot/userbot.session"`
 
-	DBPath    string `env:"DB_PATH" envDefault:"/data/bot_data.sqlite"`
+	DBPath    string `env:"DB_PATH" envDefault:"/root/instgobot/bot_data.sqlite"`
 	RedisAddr string `env:"REDIS_ADDR" envDefault:"localhost:6379"`
 
 	YtDlpPath string `env:"YT_DLP_PATH" envDefault:"yt-dlp"`

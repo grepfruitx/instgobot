@@ -7,7 +7,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-telegram/bot v1.22.0
 	github.com/gotd/td v0.161.0
-	github.com/grepfruitx/snapmedia-downloader v0.0.0-00010101000000-000000000000
+	github.com/grepfruitx/snapmedia-downloader v0.0.0-20260721115429-0660d587a97a
 	github.com/pressly/goose/v3 v3.27.2
 	github.com/redis/go-redis/v9 v9.21.0
 	golang.org/x/sys v0.47.0
@@ -63,5 +63,3 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
-
-replace github.com/grepfruitx/snapmedia-downloader => ../snapmedia-downloader

@@ -69,12 +69,26 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 
 	var videos, photos []string
 	for _, m := range resp.Data.Media {
+		if m.URL == "" {
+			continue
+		}
 		switch m.Type {
 		case smd.MediaVideo:
 			videos = append(videos, m.URL)
 		case smd.MediaImage:
 			photos = append(photos, m.URL)
 		}
+	}
+
+	if len(videos) == 0 && len(photos) == 0 {
+		if plat == "twitter" {
+			processTweetImageFallback(ctx, b, st, chatID, message, plat, username, firstName)
+			return
+		}
+		telegramapi.SendText(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
+		telegramapi.SendErrorToAdmin(ctx, b, errors.New("media items had no usable url"), "media check", message, &chatID, username)
+		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
+		return
 	}
 
 	isEphemeralStoriesPage := instagramStoriesPageRe.MatchString(strings.Split(downloadTarget, "?")[0])

@@ -1,0 +1,19 @@
+[Unit]
+Description=instgobot Telegram bot
+After=network.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/instgobot
+EnvironmentFile=/root/instgobot/.env
+ExecStart=/root/instgobot/bot
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+# generous stop timeout so an in-flight download isn't cut off by a deploy —
+# see youtube.WaitForActiveDownloads in cmd/bot/main.go
+TimeoutStopSec=1200
+
+[Install]
+WantedBy=multi-user.target
