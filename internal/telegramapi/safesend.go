@@ -84,3 +84,10 @@ func WithChatAction[T any](ctx context.Context, b *bot.Bot, chatID any, action m
 
 	return fn()
 }
+
+func WithChatActionErr(ctx context.Context, b *bot.Bot, chatID any, action models.ChatAction, fn func() error) error {
+	_, err := WithChatAction(ctx, b, chatID, action, func() (struct{}, error) {
+		return struct{}{}, fn()
+	})
+	return err
+}
