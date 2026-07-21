@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -37,12 +36,6 @@ func sendMessage(ctx context.Context, b *bot.Bot, chatID int64, text string) {
 	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
 }
 
-func recordDownload(st *store.Store, chatID int64, url, plat, mediaType string, success bool, username, firstName *string) {
-	if err := st.RecordDownload(chatID, url, plat, mediaType, success, username, firstName); err != nil {
-		slog.Error("record download failed", "error", err, "chat_id", chatID)
-	}
-}
-
 func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message string, adminUsername string, username, firstName *string) {
 	plat := platform.DetectPlatform(message)
 
@@ -67,14 +60,14 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 			adminUsername,
 		))
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New(resp.Message), "snapsave download", message, &chatID, username)
-		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
 	}
 
 	if resp.Data == nil || len(resp.Data.Media) == 0 {
 		sendMessage(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New("no media in response"), "media check", message, &chatID, username)
-		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
 	}
 
@@ -117,7 +110,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	if len(photos) > 0 {
 		mediaType = "photo"
 	}
-	recordDownload(st, chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
+	st.RecordDownloadLogged(chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
 }
 
 func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message, plat string, username, firstName *string) {
@@ -128,7 +121,7 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 			err = errors.New("tweet to image conversion returned no data")
 		}
 		telegramapi.SendErrorToAdmin(ctx, b, err, "tweet to image", message, &chatID, username)
-		recordDownload(st, chatID, message, plat, "image", false, username, firstName)
+		st.RecordDownloadLogged(chatID, message, plat, "image", false, username, firstName)
 		return
 	}
 
@@ -136,5 +129,5 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 		ChatID: chatID, Photo: &models.InputFileUpload{Filename: "tweet.png", Data: bytes.NewReader(imgBuf)},
 		Caption: config.BotTag, DisableNotification: true,
 	})
-	recordDownload(st, chatID, message, plat, "image", true, username, firstName)
+	st.RecordDownloadLogged(chatID, message, plat, "image", true, username, firstName)
 }

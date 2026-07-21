@@ -28,11 +28,6 @@ func messagesOf(v tg.MessagesMessagesClass) []tg.MessageClass {
 	}
 }
 
-// getPostMessages fetches a single message by ID, and if it's part of an
-// album (non-zero GroupedID), widens the fetch to a window around it and
-// filters down to the other messages sharing that group — mirroring the TS
-// getPostMessages helper (getMessages by id, then a windowed getMessages
-// filtered by groupedId).
 func getPostMessages(ctx context.Context, api *tg.Client, channel tg.InputChannelClass, peer tg.InputPeerClass, messageID int) ([]*tg.Message, error) {
 	resp, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 		Channel: channel,
@@ -77,9 +72,6 @@ func getPostMessages(ctx context.Context, api *tg.Client, channel tg.InputChanne
 	return album, nil
 }
 
-// sendPostMessages downloads and sends every message with media: a single
-// item goes straight through, an album downloads in parallel and ships as
-// one media group (skipping any items that failed to download).
 func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Client, messages []*tg.Message) bool {
 	type withMedia struct {
 		loc  tg.InputFileLocationClass
@@ -131,12 +123,12 @@ func (h *Handler) genericPostFailure(ctx context.Context, chatID int64, loading 
 	loading.delete(ctx)
 	if isNoAccessError(err) {
 		h.sendText(ctx, chatID, fmt.Sprintf("Нет доступа к каналу. Возможно, канал приватный или бот не является участником.\n%s", config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "post", false, username)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, username, nil)
 		return false
 	}
 	h.sendText(ctx, chatID, fmt.Sprintf("Ошибка при загрузке поста. Попробуйте позже.\n%s", config.BotTag))
 	telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram post download", "", &chatID, username)
-	recordDownload(h.st, chatID, sourceURL, "post", false, username)
+	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, username, nil)
 	return false
 }
 
@@ -160,7 +152,7 @@ func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, userna
 	if len(messages) == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Пост не найден у @%s.\n%s", username, config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "post", false, &username)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, &username, nil)
 		return false
 	}
 
@@ -169,15 +161,13 @@ func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, userna
 		h.sendText(ctx, chatID, fmt.Sprintf("Пост не содержит медиа.\n%s", config.BotTag))
 	}
 	loading.delete(ctx)
-	recordDownload(h.st, chatID, sourceURL, "post", sent, &username)
+	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", sent, &username, nil)
 	return sent
 }
 
-// DownloadPrivateTelegramPost handles t.me/c/<id>/<messageId> links. chatID
-// here is the Bot-API-style "-100<id>" channel ID produced by
-// platform.ParseTelegramLink; it's converted back to the bare MTProto
-// channel ID that Peers().ResolveChannelID expects.
 func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64, channelChatID int64, messageID int) bool {
+	// channelChatID is the Bot-API-style "-100<id>" form from platform.ParseTelegramLink,
+	// converted below to the bare MTProto id that ResolveChannelID expects
 	sourceURL := fmt.Sprintf("t.me/c/%d/%d", -channelChatID, messageID)
 	loading := h.startLoading(ctx, chatID, "Загружаю пост...")
 
@@ -198,7 +188,7 @@ func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64,
 	if len(messages) == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Пост не найден.\n%s", config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "post", false, nil)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, nil, nil)
 		return false
 	}
 
@@ -207,13 +197,12 @@ func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64,
 		h.sendText(ctx, chatID, fmt.Sprintf("Пост не содержит медиа.\n%s", config.BotTag))
 	}
 	loading.delete(ctx)
-	recordDownload(h.st, chatID, sourceURL, "post", sent, nil)
+	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", sent, nil, nil)
 	return sent
 }
 
-// rawChannelID inverts platform.ParseTelegramLink's private-channel ID
-// construction (string concatenation "-100"+digits, not arithmetic).
 func rawChannelID(chatStyleID int64) (int64, error) {
+	// inverts "-100"+digits string concatenation — NOT arithmetic, don't "simplify"
 	s := strconv.FormatInt(-chatStyleID, 10)
 	if !strings.HasPrefix(s, "100") || len(s) <= 3 {
 		return 0, fmt.Errorf("not a channel-style id: %d", chatStyleID)

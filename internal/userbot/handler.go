@@ -3,7 +3,6 @@ package userbot
 import (
 	"bytes"
 	"context"
-	"log/slog"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -24,14 +23,6 @@ func New(client *Client, b *bot.Bot, st *store.Store) *Handler {
 	return &Handler{client: client, b: b, st: st}
 }
 
-func recordDownload(st *store.Store, chatID int64, sourceURL, mediaType string, success bool, username *string) {
-	if err := st.RecordDownload(chatID, sourceURL, "telegram", mediaType, success, username, nil); err != nil {
-		slog.Error("record download failed", "error", err, "chat_id", chatID)
-	}
-}
-
-// loadingHandle tracks the "Загружаю..." placeholder message so callers can
-// delete it once without threading a *models.Message through every branch.
 type loadingHandle struct {
 	h      *Handler
 	chatID int64
@@ -89,9 +80,8 @@ func isNoAccessError(err error) bool {
 	return false
 }
 
-// storyMediaOf extracts the *tg.StoryItem's downloadable media, returning
-// ok=false for deleted/skipped story variants (no media to extract).
 func storyMediaOf(item tg.StoryItemClass) (tg.MessageMediaClass, bool) {
+	// ok=false also covers deleted/skipped story variants, which carry no media
 	full, ok := item.(*tg.StoryItem)
 	if !ok {
 		return nil, false

@@ -19,7 +19,7 @@ func (h *Handler) genericStoriesFailure(ctx context.Context, chatID int64, loadi
 	if err != nil {
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram stories download", "", &chatID, username)
 	}
-	recordDownload(h.st, chatID, sourceURL, "story", false, username)
+	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, username, nil)
 	return false
 }
 
@@ -42,7 +42,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 	if len(result.Stories) == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Сторис #%d не найдена у @%s.\n%s", storyID, username, config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "story", false, &username)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
 
@@ -55,7 +55,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 	if !ok {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Сторис #%d не содержит медиа.\n%s", storyID, config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "story", false, &username)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
 
@@ -63,7 +63,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 	if err != nil || len(data) == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Не удалось скачать сторис #%d.\n%s", storyID, config.BotTag))
-		recordDownload(h.st, chatID, sourceURL, "story", false, &username)
+		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
 
@@ -72,7 +72,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 	}
 
 	loading.delete(ctx)
-	recordDownload(h.st, chatID, sourceURL, "story", true, &username)
+	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", true, &username, nil)
 	return true
 }
 
@@ -95,7 +95,7 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 			"Не удалось найти публичные сторис у @%s. Возможно, пользователь скрыл свои сторис или у него нет публичных сторис.\n%s",
 			username, config.BotTag,
 		))
-		recordDownload(h.st, chatID, username, "story", false, &username)
+		h.st.RecordDownloadLogged(chatID, username, "telegram", "story", false, &username, nil)
 		return false
 	}
 
@@ -161,11 +161,11 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 	if successCount == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf("Сторис найдены, но не удалось загрузить медиа. Возможно, они недоступны.\n%s", config.BotTag))
-		recordDownload(h.st, chatID, username, "story", false, &username)
+		h.st.RecordDownloadLogged(chatID, username, "telegram", "story", false, &username, nil)
 		return false
 	}
 
 	loading.delete(ctx)
-	recordDownload(h.st, chatID, username, "story", true, &username)
+	h.st.RecordDownloadLogged(chatID, username, "telegram", "story", true, &username, nil)
 	return true
 }

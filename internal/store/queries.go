@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"log/slog"
 
 	"gorm.io/gorm"
 )
@@ -47,6 +48,12 @@ func (s *Store) RecordDownload(chatID int64, url, platform, mediaType string, su
 		return s.db.Model(&User{}).Where("id = ?", userID).UpdateColumn("download_count", gorm.Expr("download_count + 1")).Error
 	}
 	return nil
+}
+
+func (s *Store) RecordDownloadLogged(chatID int64, url, platform, mediaType string, success bool, username, firstName *string) {
+	if err := s.RecordDownload(chatID, url, platform, mediaType, success, username, firstName); err != nil {
+		slog.Error("record download failed", "error", err, "chat_id", chatID)
+	}
 }
 
 func (s *Store) RecordError(chatID int64, errorContext, errorMessage string, originalMessage, username, firstName *string) error {

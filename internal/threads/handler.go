@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -16,12 +15,6 @@ import (
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
-
-func recordDownload(st *store.Store, chatID int64, sourceURL, plat, mediaType string, success bool, username, firstName *string) {
-	if err := st.RecordDownload(chatID, sourceURL, plat, mediaType, success, username, firstName); err != nil {
-		slog.Error("record download failed", "error", err, "chat_id", chatID)
-	}
-}
 
 type apiResponse struct {
 	ImageURLs []string          `json:"image_urls"`
@@ -77,7 +70,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 			ChatID: chatID, Text: "Не удалось скачать медиа с Threads. Попробуйте еще раз.",
 		})
 		telegramapi.SendErrorToAdmin(ctx, b, err, "threads download", message, &chatID, username)
-		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
 	}
 
@@ -85,7 +78,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
 			ChatID: chatID, Text: "Не удалось получить медиафайлы из Threads.",
 		})
-		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
 	}
 
@@ -114,5 +107,5 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	if len(photos) > 0 {
 		mediaType = "photo"
 	}
-	recordDownload(st, chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
+	st.RecordDownloadLogged(chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
 }

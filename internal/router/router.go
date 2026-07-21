@@ -29,11 +29,8 @@ func New(st *store.Store, userHandler *userbot.Handler, ytHandler *youtube.Handl
 	}
 }
 
-// Handle is a bot.HandlerFunc — register it with bot.WithDefaultHandler so
-// every update (messages, callback queries) flows through our own routing
-// logic instead of the library's pattern-based handler registration, which
-// doesn't fit this app's branching.
 func (r *Router) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
+	// register via bot.WithDefaultHandler, not the library's pattern-matching handlers
 	if update.Message != nil {
 		r.handleMessage(ctx, b, update.Message)
 	}

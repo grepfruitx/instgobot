@@ -44,11 +44,8 @@ func (terminalAuth) SignUp(context.Context) (auth.UserInfo, error) {
 	return auth.UserInfo{}, fmt.Errorf("sign-up not supported — this must be an existing Telegram account")
 }
 
-// Login runs the interactive phone/code/2FA login flow and persists the
-// resulting session via cfg.UserbotSessionPath. Meant to be run once,
-// manually (see cmd/userbot-login), before first deploying against a fresh
-// session file — not part of the bot's normal startup path.
 func Login(ctx context.Context, cfg *config.Config) error {
+	// one-time manual step (see cmd/userbot-login) — not called from cmd/bot
 	c := NewClient(cfg)
 	return c.tg.Run(ctx, func(ctx context.Context) error {
 		flow := auth.NewFlow(terminalAuth{}, auth.SendCodeOptions{})

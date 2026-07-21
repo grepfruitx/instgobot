@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"math/rand"
 	"os"
@@ -39,12 +38,6 @@ type Handler struct {
 
 func New(b *bot.Bot, st *store.Store, rdb *redis.Client, limiter *ratelimit.Limiter, cfg *config.Config) *Handler {
 	return &Handler{b: b, st: st, rdb: rdb, limiter: limiter, cfg: cfg}
-}
-
-func recordDownload(st *store.Store, chatID int64, url, mediaType string, success bool, username, firstName *string) {
-	if err := st.RecordDownload(chatID, url, "youtube", mediaType, success, username, firstName); err != nil {
-		slog.Error("record download failed", "error", err, "chat_id", chatID)
-	}
 }
 
 func videoCacheType(quality int) string { return fmt.Sprintf("yt_v_%d", quality) }
@@ -92,8 +85,6 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID int64, url strin
 
 var callbackDataRe = regexp.MustCompile(`^yt:(\d+):(v|a):(\d+)$`)
 
-// ParseCallbackData parses a "yt:<chatId>:<v|a>:<quality>" callback_query
-// data string, as produced by SendQualityPicker's inline keyboard.
 func ParseCallbackData(data string) (chatID int64, kind string, quality int, ok bool) {
 	m := callbackDataRe.FindStringSubmatch(data)
 	if m == nil {
@@ -142,11 +133,11 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 
 	if kind == "a" {
 		sent := h.sendAudio(ctx, chatID, url, username)
-		recordDownload(h.st, chatID, url, "audio", sent, username, nil)
+		h.st.RecordDownloadLogged(chatID, url, "youtube", "audio", sent, username, nil)
 		return
 	}
 	sent := h.downloadAndSendVideo(ctx, chatID, url, quality, username, true)
-	recordDownload(h.st, chatID, url, "video", sent, username, nil)
+	h.st.RecordDownloadLogged(chatID, url, "youtube", "video", sent, username, nil)
 }
 
 func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, username *string) bool {
@@ -327,5 +318,5 @@ func (h *Handler) downloadMuxed(ctx context.Context, url, cacheType string, chos
 
 func (h *Handler) ProcessShorts(ctx context.Context, chatID int64, url string, username, firstName *string) {
 	sent := h.downloadAndSendVideo(ctx, chatID, url, shortsDefaultQuality, username, false)
-	recordDownload(h.st, chatID, url, "video", sent, username, firstName)
+	h.st.RecordDownloadLogged(chatID, url, "youtube", "video", sent, username, firstName)
 }

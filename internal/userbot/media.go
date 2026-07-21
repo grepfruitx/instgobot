@@ -33,10 +33,8 @@ func bestPhotoSizeType(sizes []tg.PhotoSizeClass) string {
 	return bestType
 }
 
-// extractDownloadable maps a message/story's media to a downloader-ready
-// file location, mirroring the TS code's binary split: photo vs "everything
-// else is sent as video" (it never inspects document mime types).
 func extractDownloadable(m tg.MessageMediaClass) (loc tg.InputFileLocationClass, kind mediaKind, ok bool) {
+	// binary split only: photo vs everything-else-is-video, no mime sniffing
 	switch mm := m.(type) {
 	case *tg.MessageMediaPhoto:
 		photoClass, has := mm.GetPhoto()

@@ -30,11 +30,9 @@ func NewClient(cfg *config.Config) *Client {
 	}
 }
 
-// Run blocks for the client's connection lifetime (reconnects included). It's
-// meant to be started in its own goroutine; ready is called once the
-// connection is established and the client is confirmed authorized — only
-// after that is it safe to call API()/Peers() from other goroutines.
 func (c *Client) Run(ctx context.Context, ready func()) error {
+	// blocks for the connection's lifetime — run in its own goroutine.
+	// API()/Peers() are only safe to call from elsewhere after ready() fires.
 	return c.tg.Run(ctx, func(ctx context.Context) error {
 		status, err := c.tg.Auth().Status(ctx)
 		if err != nil {
@@ -56,12 +54,10 @@ func (c *Client) Run(ctx context.Context, ready func()) error {
 func (c *Client) API() *tg.Client       { return c.api }
 func (c *Client) Peers() *peers.Manager { return c.peers }
 
-// SyncDialogs primes the peers manager's cache with every chat/channel/user
-// in the account's dialog list. Resolving a channel by bare ID (private post
-// links) needs its access_hash, which the manager only has for peers it has
-// already seen — this is the MTProto equivalent of gramjs's entity cache
-// warming from get_dialogs. Best-effort: call once after Run's ready signal.
 func (c *Client) SyncDialogs(ctx context.Context) error {
+	// primes access_hash for every dialog — private-channel resolution by bare
+	// ID needs it, and the manager only has it for peers already seen. Call
+	// once after Run's ready signal.
 	dialogs, err := c.api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
 		OffsetPeer: &tg.InputPeerEmpty{},
 		Limit:      200,

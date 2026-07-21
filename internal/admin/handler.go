@@ -37,9 +37,6 @@ func nowRu() string {
 	return time.Now().Format("02.01.2006, 15:04:05")
 }
 
-// formatRuDateTime parses a store timestamp (nowISO's format) and renders it
-// like TS's toLocaleString("ru-RU"); falls back to the raw string if
-// parsing fails rather than dropping the value.
 func formatRuDateTime(iso string) string {
 	t, err := time.Parse("2006-01-02T15:04:05.000Z", iso)
 	if err != nil {
@@ -68,10 +65,8 @@ func parseLimit(args []string, fallback int) int {
 	return fallback
 }
 
-// HandleCommand dispatches an admin command. It re-checks IsAdmin itself
-// (matching the TS handler, which does the same even though callers already
-// gate on it) and returns whether the message was recognized as one.
 func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message string, userID int64) bool {
+	// re-checked even though callers already gate on this — don't remove
 	if !config.IsAdmin(userID) {
 		return false
 	}

@@ -52,8 +52,6 @@ func sendFromFileID(ctx context.Context, b *bot.Bot, chatID int64, kind Kind, fi
 	})
 }
 
-// uploadMedia streams body to Telegram as a fresh upload (as opposed to
-// sendFromFileID, which reuses an already-uploaded file_id).
 func uploadMedia(ctx context.Context, b *bot.Bot, chatID int64, kind Kind, body io.Reader, caption string) (*models.Message, error) {
 	if kind == KindVideo {
 		return telegramapi.SafeSendVideo(ctx, b, &bot.SendVideoParams{
@@ -125,9 +123,7 @@ func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID
 	return false, nil
 }
 
-// attemptSingleDownloadAndSend runs one fetch+send attempt. retry=true means the
-// caller should sleep and try again (attempt 0 only); result is only meaningful
-// when retry=false.
+// retry=true means sleep and try again; result is only meaningful when retry=false.
 func attemptSingleDownloadAndSend(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, username *string, postURL *string, attempt int) (result bool, retry bool) {
 	resp, err := FetchMediaResponse(ctx, url, false)
 	if err != nil {
