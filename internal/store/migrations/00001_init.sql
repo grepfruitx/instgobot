@@ -1,0 +1,60 @@
+-- +goose Up
+CREATE TABLE IF NOT EXISTS users (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	username TEXT,
+	first_name TEXT,
+	chat_id INTEGER UNIQUE NOT NULL,
+	first_seen TEXT NOT NULL,
+	last_activity TEXT NOT NULL,
+	download_count INTEGER DEFAULT 0,
+	error_count INTEGER DEFAULT 0,
+	newsletter BOOLEAN DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS downloads (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	url TEXT NOT NULL,
+	platform TEXT NOT NULL,
+	media_type TEXT NOT NULL,
+	success BOOLEAN NOT NULL,
+	timestamp TEXT NOT NULL,
+	FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE IF NOT EXISTS errors (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	error_context TEXT NOT NULL,
+	error_message TEXT NOT NULL,
+	original_message TEXT,
+	timestamp TEXT NOT NULL,
+	FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE IF NOT EXISTS platform_status (
+	platform TEXT PRIMARY KEY,
+	disabled INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS media_cache (
+	post_url TEXT NOT NULL,
+	media_type TEXT NOT NULL,
+	media_index INTEGER NOT NULL,
+	file_id TEXT NOT NULL,
+	PRIMARY KEY (post_url, media_type, media_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_chat_id ON users (chat_id);
+CREATE INDEX IF NOT EXISTS idx_downloads_user_id ON downloads (user_id);
+CREATE INDEX IF NOT EXISTS idx_errors_user_id ON errors (user_id);
+
+-- +goose Down
+DROP INDEX IF EXISTS idx_errors_user_id;
+DROP INDEX IF EXISTS idx_downloads_user_id;
+DROP INDEX IF EXISTS idx_users_chat_id;
+DROP TABLE IF EXISTS media_cache;
+DROP TABLE IF EXISTS platform_status;
+DROP TABLE IF EXISTS errors;
+DROP TABLE IF EXISTS downloads;
+DROP TABLE IF EXISTS users;

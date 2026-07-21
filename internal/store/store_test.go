@@ -1,0 +1,150 @@
+package store
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func strp(s string) *string { return &s }
+
+func TestUpsertUserInsertsThenUpdates(t *testing.T) {
+	s := newTestStore(t)
+
+	id1, err := s.UpsertUser(100, strp("alice"), strp("Alice"))
+	if err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+
+	id2, err := s.UpsertUser(100, strp("alice2"), strp("Alice2"))
+	if err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+	if id1 != id2 {
+		t.Fatalf("expected same user id, got %d and %d", id1, id2)
+	}
+
+	users, err := s.GetUsers(10)
+	if err != nil {
+		t.Fatalf("GetUsers: %v", err)
+	}
+	if len(users) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(users))
+	}
+	if *users[0].Username != "alice2" {
+		t.Fatalf("expected username alice2, got %s", *users[0].Username)
+	}
+}
+
+func TestRecordDownloadIncrementsCount(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordDownload(200, "https://example.com/x", "instagram", "video", true, nil, nil); err != nil {
+		t.Fatalf("RecordDownload: %v", err)
+	}
+	if err := s.RecordDownload(200, "https://example.com/y", "instagram", "video", false, nil, nil); err != nil {
+		t.Fatalf("RecordDownload: %v", err)
+	}
+
+	users, err := s.GetTopUsers(10)
+	if err != nil {
+		t.Fatalf("GetTopUsers: %v", err)
+	}
+	if len(users) != 1 || users[0].DownloadCount != 1 {
+		t.Fatalf("expected 1 user with download_count=1, got %+v", users)
+	}
+
+	stats, err := s.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stats.TotalDownloads != 1 || stats.TotalUsers != 1 {
+		t.Fatalf("unexpected stats: %+v", stats)
+	}
+
+	platforms, err := s.GetPlatformStats()
+	if err != nil {
+		t.Fatalf("GetPlatformStats: %v", err)
+	}
+	if len(platforms) != 1 || platforms[0].TotalRequests != 2 || platforms[0].SuccessfulDownloads != 1 {
+		t.Fatalf("unexpected platform stats: %+v", platforms)
+	}
+}
+
+func TestNewsletterToggle(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.UpsertUser(300, nil, nil); err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+
+	status, err := s.GetNewsletterStatus(300)
+	if err != nil || !status {
+		t.Fatalf("expected default subscribed, got %v err=%v", status, err)
+	}
+
+	newStatus, err := s.ToggleNewsletterSubscription(300)
+	if err != nil {
+		t.Fatalf("ToggleNewsletterSubscription: %v", err)
+	}
+	if newStatus {
+		t.Fatalf("expected unsubscribed after toggle, got subscribed")
+	}
+
+	ok, err := s.ToggleNewsletterSubscription(999)
+	if err != nil {
+		t.Fatalf("ToggleNewsletterSubscription: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected false for unknown chat id")
+	}
+}
+
+func TestPlatformDisabled(t *testing.T) {
+	s := newTestStore(t)
+
+	disabled, err := s.IsPlatformDisabled("tiktok")
+	if err != nil || disabled {
+		t.Fatalf("expected not disabled by default, got %v err=%v", disabled, err)
+	}
+
+	if err := s.SetPlatformDisabled("tiktok", true); err != nil {
+		t.Fatalf("SetPlatformDisabled: %v", err)
+	}
+	disabled, err = s.IsPlatformDisabled("tiktok")
+	if err != nil || !disabled {
+		t.Fatalf("expected disabled, got %v err=%v", disabled, err)
+	}
+
+	platforms, err := s.GetDisabledPlatforms()
+	if err != nil || len(platforms) != 1 || platforms[0] != "tiktok" {
+		t.Fatalf("unexpected disabled platforms: %v err=%v", platforms, err)
+	}
+}
+
+func TestMediaCache(t *testing.T) {
+	s := newTestStore(t)
+
+	_, ok, err := s.GetCachedFileID("https://example.com/p", "video", 0)
+	if err != nil || ok {
+		t.Fatalf("expected cache miss, got ok=%v err=%v", ok, err)
+	}
+
+	if err := s.SetCachedFileID("https://example.com/p", "video", 0, "file123"); err != nil {
+		t.Fatalf("SetCachedFileID: %v", err)
+	}
+
+	fileID, ok, err := s.GetCachedFileID("https://example.com/p", "video", 0)
+	if err != nil || !ok || fileID != "file123" {
+		t.Fatalf("expected cache hit file123, got %q ok=%v err=%v", fileID, ok, err)
+	}
+}
