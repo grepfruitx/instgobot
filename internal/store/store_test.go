@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -146,5 +147,38 @@ func TestMediaCache(t *testing.T) {
 	fileID, ok, err := s.GetCachedFileID("https://example.com/p", "video", 0)
 	if err != nil || !ok || fileID != "file123" {
 		t.Fatalf("expected cache hit file123, got %q ok=%v err=%v", fileID, ok, err)
+	}
+}
+
+func TestConcurrentWritesDoNotFailWithBusy(t *testing.T) {
+	s := newTestStore(t)
+
+	const n = 100
+	errCh := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			chatID := int64(1000 + i%10) // 10 distinct users, 10 writes each — real contention
+			err := s.RecordDownload(chatID, "https://example.com/x", "instagram", "video", true, nil, nil)
+			errCh <- err
+		}(i)
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent RecordDownload failed: %v", err)
+		}
+	}
+
+	stats, err := s.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stats.TotalDownloads != n {
+		t.Fatalf("expected %d downloads recorded, got %d", n, stats.TotalDownloads)
 	}
 }

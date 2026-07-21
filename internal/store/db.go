@@ -29,6 +29,10 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 
+	if err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;").Error; err != nil {
+		return nil, err
+	}
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return nil, err

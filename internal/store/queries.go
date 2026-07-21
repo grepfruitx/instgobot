@@ -10,27 +10,20 @@ import (
 func (s *Store) UpsertUser(chatID int64, username, firstName *string) (uint, error) {
 	now := nowISO()
 
-	var u User
-	err := s.db.Where("chat_id = ?", chatID).First(&u).Error
-	if err == nil {
-		if err := s.db.Model(&User{}).Where("id = ?", u.ID).Updates(map[string]any{
-			"username":      username,
-			"first_name":    firstName,
-			"last_activity": now,
-		}).Error; err != nil {
-			return 0, err
-		}
-		return u.ID, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	var id uint
+	err := s.db.Raw(`
+		INSERT INTO users (username, first_name, chat_id, first_seen, last_activity)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (chat_id) DO UPDATE SET
+			username = excluded.username,
+			first_name = excluded.first_name,
+			last_activity = excluded.last_activity
+		RETURNING id
+	`, username, firstName, chatID, now, now).Scan(&id).Error
+	if err != nil {
 		return 0, err
 	}
-
-	u = User{Username: username, FirstName: firstName, ChatID: chatID, FirstSeen: now, LastActivity: now}
-	if err := s.db.Create(&u).Error; err != nil {
-		return 0, err
-	}
-	return u.ID, nil
+	return id, nil
 }
 
 func (s *Store) RecordDownload(chatID int64, url, platform, mediaType string, success bool, username, firstName *string) error {
@@ -167,20 +160,12 @@ func (s *Store) GetAllUsers() ([]NewsletterUser, error) {
 }
 
 func (s *Store) ToggleNewsletterSubscription(chatID int64) (bool, error) {
-	var u User
-	err := s.db.Select("newsletter").Where("chat_id = ?", chatID).First(&u).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	newStatus := !u.Newsletter
-	if err := s.db.Model(&User{}).Where("chat_id = ?", chatID).Update("newsletter", newStatus).Error; err != nil {
-		return false, err
-	}
-	return newStatus, nil
+	var newStatus bool
+	err := s.db.Raw(`
+		UPDATE users SET newsletter = NOT newsletter WHERE chat_id = ?
+		RETURNING newsletter
+	`, chatID).Scan(&newStatus).Error
+	return newStatus, err
 }
 
 func (s *Store) GetNewsletterStatus(chatID int64) (bool, error) {

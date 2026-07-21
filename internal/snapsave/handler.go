@@ -123,7 +123,22 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	st.RecordDownloadLogged(chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
 }
 
+const tweetImageCacheType = "tweet_image"
+
 func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message, plat string, username, firstName *string) {
+	postURL := strings.TrimSuffix(strings.Split(message, "?")[0], "/")
+
+	if cached, ok, _ := st.GetCachedFileID(postURL, tweetImageCacheType, 0); ok {
+		if _, err := telegramapi.SafeSendPhoto(ctx, b, &bot.SendPhotoParams{
+			ChatID: chatID, Photo: &models.InputFileString{Data: cached},
+			Caption: config.BotTag, DisableNotification: true,
+		}); err == nil {
+			st.RecordDownloadLogged(chatID, message, plat, "image", true, username, firstName)
+			return
+		}
+		// stale file_id — fall through to re-render
+	}
+
 	imgBuf, err := convertTweetToImage(ctx, message)
 	if err != nil || len(imgBuf) == 0 {
 		telegramapi.SendText(ctx, b, chatID, "Не удалось конвертировать твит в изображение.")
@@ -135,9 +150,12 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 		return
 	}
 
-	_, _ = telegramapi.SafeSendPhoto(ctx, b, &bot.SendPhotoParams{
+	msg, _ := telegramapi.SafeSendPhoto(ctx, b, &bot.SendPhotoParams{
 		ChatID: chatID, Photo: &models.InputFileUpload{Filename: "tweet.png", Data: bytes.NewReader(imgBuf)},
 		Caption: config.BotTag, DisableNotification: true,
 	})
+	if msg != nil && len(msg.Photo) > 0 {
+		st.SetCachedFileID(postURL, tweetImageCacheType, 0, msg.Photo[len(msg.Photo)-1].FileID)
+	}
 	st.RecordDownloadLogged(chatID, message, plat, "image", true, username, firstName)
 }
