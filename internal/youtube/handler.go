@@ -181,13 +181,13 @@ func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, usern
 
 	if cached, ok, _ := h.st.GetCachedFileID(url, audioCacheType, 0); ok {
 		_, err := h.b.SendAudio(ctx, &bot.SendAudioParams{ChatID: chatID, Audio: &models.InputFileString{Data: cached}, Caption: config.BotTag, DisableNotification: true})
-		if err != nil {
-			if !telegramapi.IsBotBlockedError(err) {
-				telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", url, &chatID, username)
-			}
+		if err == nil {
+			return true
+		}
+		if telegramapi.IsBotBlockedError(err) {
 			return false
 		}
-		return true
+		// stale file_id — fall through to re-download
 	}
 
 	sent := false
@@ -270,8 +270,12 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 			_, sendErr := h.b.SendVideo(ctx, videoOpts)
 			if sendErr == nil {
 				sent = true
+				return nil
 			}
-			return sendErr
+			if telegramapi.IsBotBlockedError(sendErr) {
+				return sendErr
+			}
+			// stale file_id — fall through to re-download
 		}
 
 		rnd := rand.Intn(100000) + 1

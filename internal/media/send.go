@@ -214,7 +214,10 @@ func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID 
 	}
 
 	if postURL != nil && allCached(st, *postURL, kind, len(validURLs)) {
-		return sendCachedGroups(ctx, b, st, chatID, groups, groupSize, kind, *postURL)
+		if sendCachedGroups(ctx, b, st, chatID, groups, groupSize, kind, *postURL) {
+			return true, nil
+		}
+		// stale file_ids — fall through to re-download
 	}
 
 	for groupIndex, group := range groups {
@@ -256,7 +259,7 @@ func allCached(st *store.Store, postURL string, kind Kind, count int) bool {
 	return true
 }
 
-func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, groups [][]string, groupSize int, kind Kind, postURL string) (bool, error) {
+func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, groups [][]string, groupSize int, kind Kind, postURL string) bool {
 	for groupIndex, group := range groups {
 		type cachedItem struct {
 			fileID  string
@@ -273,21 +276,25 @@ func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID i
 			items[localIndex] = cachedItem{fileID, caption}
 		}
 
+		var sendErr error
 		if len(items) == 1 {
-			_, _ = sendFromFileID(ctx, b, chatID, kind, items[0].fileID, items[0].caption)
+			_, sendErr = sendFromFileID(ctx, b, chatID, kind, items[0].fileID, items[0].caption)
 		} else {
 			media := make([]models.InputMedia, len(items))
 			for i, it := range items {
 				media[i] = newFileIDInputMedia(kind, it.fileID, it.caption)
 			}
-			_, _ = telegramapi.SafeSendMediaGroup(ctx, b, &bot.SendMediaGroupParams{ChatID: chatID, Media: media, DisableNotification: true})
+			_, sendErr = telegramapi.SafeSendMediaGroup(ctx, b, &bot.SendMediaGroupParams{ChatID: chatID, Media: media, DisableNotification: true})
+		}
+		if sendErr != nil {
+			return telegramapi.IsBotBlockedError(sendErr)
 		}
 
 		if groupIndex < len(groups)-1 {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
-	return true, nil
+	return true
 }
 
 func newFileIDInputMedia(kind Kind, fileID string, caption string) models.InputMedia {
