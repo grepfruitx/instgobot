@@ -1,0 +1,171 @@
+package router
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+
+	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/messages"
+	"github.com/grepfruitx/instgobot/internal/platform"
+	"github.com/grepfruitx/instgobot/internal/ratelimit"
+	"github.com/grepfruitx/instgobot/internal/snapsave"
+	"github.com/grepfruitx/instgobot/internal/telegramapi"
+	"github.com/grepfruitx/instgobot/internal/threads"
+)
+
+var telegramUsernameRe = regexp.MustCompile(`^@\w{5,32}$`)
+
+func (r *Router) send(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+}
+
+func (r *Router) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Message) {
+	text := msg.Text
+	if text == "" {
+		return
+	}
+
+	chatID := msg.Chat.ID
+	var userID int64
+	var username, firstName *string
+	if msg.From != nil {
+		userID = msg.From.ID
+		if msg.From.Username != "" {
+			username = &msg.From.Username
+		}
+		if msg.From.FirstName != "" {
+			firstName = &msg.From.FirstName
+		}
+	}
+
+	switch {
+	case text == "/start":
+		r.send(ctx, b, chatID, messages.StartMessage)
+		return
+	case text == "/help":
+		r.send(ctx, b, chatID, messages.HelpMessage)
+		return
+	case text == "/newsletter":
+		messages.ProcessNewsletterToggle(ctx, b, r.st, chatID)
+		return
+	case strings.HasPrefix(text, "/feat"):
+		messages.ProcessFeatureRequest(ctx, b, chatID, text, r.adminUsername, username, firstName)
+		return
+	}
+
+	isValidURL := strings.Contains(text, "https://") || strings.Contains(text, "http://")
+	isAdminCommand := config.IsAdmin(userID) && strings.HasPrefix(text, "/")
+	isTelegramUsername := telegramUsernameRe.MatchString(text)
+
+	if !isValidURL && !isAdminCommand && !isTelegramUsername {
+		r.send(ctx, b, chatID, messages.HelpMessage)
+		return
+	}
+
+	isTelegramContent := isTelegramUsername || (isValidURL && platform.IsTelegramLink(text))
+	if isTelegramContent {
+		if r.rejectIfPlatformDisabled(ctx, b, chatID, text, userID) {
+			return
+		}
+		effectiveUserID := userID
+		if effectiveUserID == 0 {
+			effectiveUserID = chatID
+		}
+		r.handleTelegramContent(ctx, b, text, chatID, effectiveUserID)
+		return
+	}
+
+	r.handleMediaURL(ctx, b, chatID, userID, text, username, firstName)
+}
+
+func (r *Router) handleTelegramContent(ctx context.Context, b *bot.Bot, text string, chatID, userID int64) {
+	rl, err := r.limiter.CheckTelegramStories(ctx, userID, config.IsAdmin(userID))
+	if err != nil {
+		telegramapi.SendErrorToAdmin(ctx, b, err, "telegram stories rate limit", text, &chatID, nil)
+		return
+	}
+	if !rl.Allowed {
+		minutesLeft := int(math.Ceil(time.Until(rl.ResetTime).Minutes()))
+		r.send(ctx, b, chatID, fmt.Sprintf("⚡ Лимит: 1 запрос раз в 3 минуты. Попробуйте снова через %d мин.", minutesLeft))
+		return
+	}
+
+	if telegramUsernameRe.MatchString(text) {
+		r.userHandler.DownloadStories(ctx, chatID, strings.TrimPrefix(text, "@"))
+		return
+	}
+
+	parsed, ok := platform.ParseTelegramLink(text)
+	if !ok {
+		r.send(ctx, b, chatID, "Не удалось распознать ссылку Telegram.")
+		return
+	}
+
+	switch parsed.Type {
+	case platform.TelegramLinkPrivatePost:
+		r.userHandler.DownloadPrivateTelegramPost(ctx, chatID, parsed.ChannelID, int(parsed.MessageID))
+	case platform.TelegramLinkStory:
+		r.userHandler.DownloadStoryByID(ctx, chatID, parsed.Username, int(parsed.ID))
+	case platform.TelegramLinkPost:
+		r.userHandler.DownloadTelegramPost(ctx, chatID, parsed.Username, int(parsed.ID))
+	default:
+		r.userHandler.DownloadStories(ctx, chatID, parsed.Username)
+	}
+}
+
+func (r *Router) handleMediaURL(ctx context.Context, b *bot.Bot, chatID int64, userID int64, text string, username, firstName *string) {
+	_, _ = r.st.UpsertUser(chatID, username, firstName)
+
+	if config.IsAdmin(userID) {
+		if r.adminHandler.HandleCommand(ctx, chatID, text, userID) {
+			return
+		}
+	}
+
+	if !config.IsAdmin(userID) {
+		rl, err := r.limiter.CheckGeneral(ctx, chatID)
+		if err != nil {
+			telegramapi.SendErrorToAdmin(ctx, b, err, "general rate limit", text, &chatID, username)
+			return
+		}
+		if !rl.Allowed {
+			ratelimit.SendGeneralLimitMessage(ctx, b, chatID, rl.ResetTime)
+			return
+		}
+	}
+
+	if r.rejectIfPlatformDisabled(ctx, b, chatID, text, userID) {
+		return
+	}
+
+	switch {
+	case platform.IsYoutubeShortsLink(text):
+		r.ytHandler.ProcessShorts(ctx, chatID, text, username, firstName)
+	case platform.IsYoutubeLink(text):
+		r.ytHandler.SendQualityPicker(ctx, chatID, text, username)
+	case platform.IsThreadsLink(text):
+		threads.Process(ctx, b, r.st, chatID, text, username, firstName)
+	default:
+		snapsave.Process(ctx, b, r.st, chatID, text, r.adminUsername, username, firstName)
+	}
+}
+
+func (r *Router) rejectIfPlatformDisabled(ctx context.Context, b *bot.Bot, chatID int64, text string, userID int64) bool {
+	if config.IsAdmin(userID) {
+		return false
+	}
+	plat := platform.DetectPlatform(text)
+	disabled, err := r.st.IsPlatformDisabled(plat)
+	if err != nil || !disabled {
+		return false
+	}
+	r.send(ctx, b, chatID, "😔 Скачивание с этой платформы временно не работает. Мы уже занимаемся этим.")
+	return true
+}
