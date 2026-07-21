@@ -149,7 +149,7 @@ func (r *Router) handleMediaURL(ctx context.Context, b *bot.Bot, chatID int64, u
 	case platform.IsYoutubeShortsLink(text):
 		r.ytHandler.ProcessShorts(ctx, chatID, text, username, firstName)
 	case platform.IsYoutubeLink(text):
-		r.ytHandler.SendQualityPicker(ctx, chatID, text, username)
+		r.ytHandler.SendQualityPicker(ctx, chatID, userID, text, username)
 	case platform.IsThreadsLink(text):
 		threads.Process(ctx, b, r.st, chatID, text, username, firstName)
 	default:

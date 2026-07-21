@@ -182,3 +182,39 @@ func TestConcurrentWritesDoNotFailWithBusy(t *testing.T) {
 		t.Fatalf("expected %d downloads recorded, got %d", n, stats.TotalDownloads)
 	}
 }
+
+func TestConcurrentTogglesAreAtomic(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.UpsertUser(400, nil, nil); err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+
+	const n = 100 // even, so a lost update would flip the final state
+	errCh := make(chan error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.ToggleNewsletterSubscription(400)
+			errCh <- err
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent ToggleNewsletterSubscription failed: %v", err)
+		}
+	}
+
+	status, err := s.GetNewsletterStatus(400)
+	if err != nil {
+		t.Fatalf("GetNewsletterStatus: %v", err)
+	}
+	if !status {
+		t.Fatalf("expected even number of concurrent toggles to return to default (subscribed), got %v", status)
+	}
+}

@@ -105,16 +105,23 @@ type chosenVideo struct {
 	Width         int
 }
 
+func shortEdge(f ytDlpFormat) int {
+	if f.Width > 0 && f.Width < f.Height {
+		return f.Width
+	}
+	return f.Height
+}
+
 func chooseVideoFormat(formats []ytDlpFormat, quality int) *chosenVideo {
 	var videoOnly, audioOnly, muxed []ytDlpFormat
 
 	for _, f := range formats {
 		switch {
-		case f.VCodec != "none" && f.VCodec != "" && f.ACodec == "none" && f.Ext == "mp4" && f.Height > 0 && f.Height <= quality:
+		case f.VCodec != "none" && f.VCodec != "" && f.ACodec == "none" && f.Ext == "mp4" && f.Height > 0 && shortEdge(f) <= quality:
 			videoOnly = append(videoOnly, f)
 		case f.VCodec == "none" && f.ACodec != "none" && f.ACodec != "" && f.Ext == "m4a":
 			audioOnly = append(audioOnly, f)
-		case f.VCodec != "none" && f.VCodec != "" && f.ACodec != "none" && f.ACodec != "" && f.Height > 0 && f.Height <= quality:
+		case f.VCodec != "none" && f.VCodec != "" && f.ACodec != "none" && f.ACodec != "" && f.Height > 0 && shortEdge(f) <= quality:
 			muxed = append(muxed, f)
 		}
 	}

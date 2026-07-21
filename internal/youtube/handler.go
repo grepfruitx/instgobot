@@ -44,7 +44,17 @@ func videoCacheType(quality int) string { return fmt.Sprintf("yt_v_%d", quality)
 
 const audioCacheType = "yt_a_best"
 
-func (h *Handler) SendQualityPicker(ctx context.Context, chatID int64, url string, username *string) {
+func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, url string, username *string) {
+	isAdmin := config.IsAdmin(userID)
+	rl, err := h.limiter.PeekYouTube(ctx, userID, isAdmin)
+	if err != nil {
+		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube rate limit peek", url, &chatID, username)
+	} else if !rl.Allowed {
+		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
+		return
+	}
+
 	if err := setPendingURL(ctx, h.rdb, chatID, url); err != nil {
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube quality picker", url, &chatID, username)
 		return
@@ -67,7 +77,7 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID int64, url strin
 		audioPrefix = "⚡ "
 	}
 
-	_, err := h.b.SendMessage(ctx, &bot.SendMessageParams{
+	_, err = h.b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    chatID,
 		Text:      "🎬 <b>YouTube видео</b>\n\nВыберите формат:\n<i>Максимум в Telegram — 2 ГБ</i>",
 		ParseMode: models.ParseModeHTML,
@@ -95,7 +105,31 @@ func ParseCallbackData(data string) (chatID int64, kind string, quality int, ok 
 	return chatID, m[2], quality, true
 }
 
-func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string, quality int, userID int64, username *string) {
+func (h *Handler) setPickerLoading(ctx context.Context, chatID int64, messageID int) {
+	if messageID == 0 {
+		return
+	}
+	_, _ = h.b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+		ReplyMarkup: &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "⏳ Загрузка...", CallbackData: "yt:noop"}}},
+		},
+	})
+}
+
+func (h *Handler) clearPickerKeyboard(ctx context.Context, chatID int64, messageID int) {
+	if messageID == 0 {
+		return
+	}
+	_, _ = h.b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+		ChatID:      chatID,
+		MessageID:   messageID,
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}},
+	})
+}
+
+func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string, quality int, userID int64, messageID int, username *string) {
 	isAdmin := config.IsAdmin(userID)
 
 	if !isAdmin && !markDownloadActive(userID) {
@@ -128,6 +162,9 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 		return
 	}
 	_ = deletePendingURL(ctx, h.rdb, chatID)
+
+	h.setPickerLoading(ctx, chatID, messageID)
+	defer h.clearPickerKeyboard(ctx, chatID, messageID)
 
 	if kind == "a" {
 		sent := h.sendAudio(ctx, chatID, url, username)

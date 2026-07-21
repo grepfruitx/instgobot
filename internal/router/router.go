@@ -43,12 +43,14 @@ func (r *Router) handleCallback(ctx context.Context, b *bot.Bot, cq *models.Call
 	_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{CallbackQueryID: cq.ID})
 
 	var chatID int64
+	var messageID int
 	switch cq.Message.Type {
 	case models.MaybeInaccessibleMessageTypeMessage:
 		if cq.Message.Message == nil {
 			return
 		}
 		chatID = cq.Message.Message.Chat.ID
+		messageID = cq.Message.Message.ID
 	case models.MaybeInaccessibleMessageTypeInaccessibleMessage:
 		if cq.Message.InaccessibleMessage == nil {
 			return
@@ -68,5 +70,5 @@ func (r *Router) handleCallback(ctx context.Context, b *bot.Bot, cq *models.Call
 		username = &cq.From.Username
 	}
 
-	r.ytHandler.HandleCallback(ctx, chatID, kind, quality, cq.From.ID, username)
+	r.ytHandler.HandleCallback(ctx, chatID, kind, quality, cq.From.ID, messageID, username)
 }

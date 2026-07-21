@@ -78,3 +78,21 @@ func (l *Limiter) CheckTelegramStories(ctx context.Context, userID int64, isAdmi
 func (l *Limiter) CheckYouTube(ctx context.Context, userID int64, isAdmin bool) (Result, error) {
 	return l.checkOncePer(ctx, fmt.Sprintf("rl:youtube:%d", userID), YouTubeWindow, isAdmin)
 }
+
+func (l *Limiter) peekOncePer(ctx context.Context, key string) (Result, error) {
+	ttl, err := l.rdb.TTL(ctx, key).Result()
+	if err != nil {
+		return Result{}, err
+	}
+	if ttl <= 0 {
+		return Result{Allowed: true}, nil
+	}
+	return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}, nil
+}
+
+func (l *Limiter) PeekYouTube(ctx context.Context, userID int64, isAdmin bool) (Result, error) {
+	if isAdmin {
+		return Result{Allowed: true}, nil
+	}
+	return l.peekOncePer(ctx, fmt.Sprintf("rl:youtube:%d", userID))
+}

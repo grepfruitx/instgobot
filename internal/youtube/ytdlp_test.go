@@ -52,6 +52,21 @@ func TestChooseVideoFormatRespectsQualityCeiling(t *testing.T) {
 	}
 }
 
+func TestChooseVideoFormatPortraitUsesShortEdge(t *testing.T) {
+	formats := []ytDlpFormat{
+		{FormatID: "portrait720", VCodec: "avc1", ACodec: "none", Ext: "mp4", Height: 1280, Width: 720, TBR: 3000},
+		{FormatID: "portrait360", VCodec: "avc1", ACodec: "none", Ext: "mp4", Height: 640, Width: 360, TBR: 1000},
+		{FormatID: "140", VCodec: "none", ACodec: "mp4a", Ext: "m4a", ABR: 128},
+	}
+	chosen := chooseVideoFormat(formats, 720)
+	if chosen == nil {
+		t.Fatal("expected a match")
+	}
+	if chosen.VideoFormatID != "portrait720" {
+		t.Fatalf("expected the 720-short-edge portrait format despite height=1280, got %s", chosen.VideoFormatID)
+	}
+}
+
 func TestChooseVideoFormatNoMatch(t *testing.T) {
 	formats := []ytDlpFormat{
 		{FormatID: "1", VCodec: "none", ACodec: "none", Ext: "mp4", Height: 0},
