@@ -1,0 +1,40 @@
+# Planning doc, not part of the repo history
+PLAN.md
+
+# Binaries
+/bot
+/instgobot
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage
+*.test
+*.out
+coverage.txt
+
+# Go workspace / vendor
+/vendor/
+go.work
+go.work.sum
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# SQLite data (production DB is volume-mounted, not committed)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Userbot MTProto session
+*.session
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
