@@ -23,22 +23,27 @@ func TestRawChannelIDRejectsNonChannelStyle(t *testing.T) {
 	}
 }
 
-func TestBestPhotoSizeTypePicksLargest(t *testing.T) {
+func TestBestPhotoSizePicksLargest(t *testing.T) {
 	sizes := []tg.PhotoSizeClass{
-		&tg.PhotoSize{Type: "s", W: 100, H: 100},
-		&tg.PhotoSize{Type: "y", W: 1280, H: 720},
-		&tg.PhotoSize{Type: "m", W: 320, H: 180},
+		&tg.PhotoSize{Type: "s", W: 100, H: 100, Size: 1000},
+		&tg.PhotoSize{Type: "y", W: 1280, H: 720, Size: 50000},
+		&tg.PhotoSize{Type: "m", W: 320, H: 180, Size: 5000},
 		&tg.PhotoStrippedSize{Type: "i"},
 	}
-	if got := bestPhotoSizeType(sizes); got != "y" {
-		t.Fatalf("got %q, want %q", got, "y")
+	typ, size := bestPhotoSize(sizes)
+	if typ != "y" {
+		t.Fatalf("got type %q, want %q", typ, "y")
+	}
+	if size != 50000 {
+		t.Fatalf("got size %d, want 50000", size)
 	}
 }
 
-func TestBestPhotoSizeTypeNoUsableSizes(t *testing.T) {
+func TestBestPhotoSizeNoUsableSizes(t *testing.T) {
 	sizes := []tg.PhotoSizeClass{&tg.PhotoStrippedSize{Type: "i"}}
-	if got := bestPhotoSizeType(sizes); got != "" {
-		t.Fatalf("got %q, want empty", got)
+	typ, size := bestPhotoSize(sizes)
+	if typ != "" || size != 0 {
+		t.Fatalf("got (%q, %d), want (\"\", 0)", typ, size)
 	}
 }
 
@@ -63,14 +68,17 @@ func TestExtractDownloadablePhoto(t *testing.T) {
 	media := &tg.MessageMediaPhoto{}
 	media.SetPhoto(&tg.Photo{
 		ID: 1, AccessHash: 2,
-		Sizes: []tg.PhotoSizeClass{&tg.PhotoSize{Type: "y", W: 800, H: 600}},
+		Sizes: []tg.PhotoSizeClass{&tg.PhotoSize{Type: "y", W: 800, H: 600, Size: 12345}},
 	})
-	loc, kind, ok := extractDownloadable(media)
+	loc, kind, size, ok := extractDownloadable(media)
 	if !ok {
 		t.Fatal("expected ok")
 	}
 	if kind != mediaPhoto {
 		t.Fatalf("expected mediaPhoto, got %v", kind)
+	}
+	if size != 12345 {
+		t.Fatalf("expected size 12345, got %d", size)
 	}
 	if _, isPhotoLoc := loc.(*tg.InputPhotoFileLocation); !isPhotoLoc {
 		t.Fatalf("expected *tg.InputPhotoFileLocation, got %T", loc)
@@ -79,13 +87,16 @@ func TestExtractDownloadablePhoto(t *testing.T) {
 
 func TestExtractDownloadableDocument(t *testing.T) {
 	media := &tg.MessageMediaDocument{}
-	media.SetDocument(&tg.Document{ID: 1, AccessHash: 2})
-	loc, kind, ok := extractDownloadable(media)
+	media.SetDocument(&tg.Document{ID: 1, AccessHash: 2, Size: 98765})
+	loc, kind, size, ok := extractDownloadable(media)
 	if !ok {
 		t.Fatal("expected ok")
 	}
 	if kind != mediaVideo {
 		t.Fatalf("expected mediaVideo, got %v", kind)
+	}
+	if size != 98765 {
+		t.Fatalf("expected size 98765, got %d", size)
 	}
 	if _, isDocLoc := loc.(*tg.InputDocumentFileLocation); !isDocLoc {
 		t.Fatalf("expected *tg.InputDocumentFileLocation, got %T", loc)
@@ -93,7 +104,16 @@ func TestExtractDownloadableDocument(t *testing.T) {
 }
 
 func TestExtractDownloadableUnsupported(t *testing.T) {
-	if _, _, ok := extractDownloadable(&tg.MessageMediaEmpty{}); ok {
+	if _, _, _, ok := extractDownloadable(&tg.MessageMediaEmpty{}); ok {
 		t.Fatal("expected not ok for empty media")
+	}
+}
+
+func TestCheckSize(t *testing.T) {
+	if err := checkSize(1024); err != nil {
+		t.Fatalf("expected small size to pass, got %v", err)
+	}
+	if err := checkSize(60 * 1024 * 1024); err == nil {
+		t.Fatal("expected oversized media to fail")
 	}
 }

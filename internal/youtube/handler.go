@@ -78,7 +78,7 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID int64, url strin
 		},
 	})
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: "Не удалось отправить меню."})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось отправить меню.")
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube quality picker", url, &chatID, username)
 	}
 }
@@ -99,7 +99,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 	isAdmin := config.IsAdmin(userID)
 
 	if !isAdmin && !markDownloadActive(userID) {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: "⏳ Дождитесь окончания текущей загрузки."})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Дождитесь окончания текущей загрузки.")
 		return
 	}
 
@@ -112,9 +112,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 	if !rl.Allowed {
 		markDownloadDone(userID)
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{
-			ChatID: chatID, Text: fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec),
-		})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
 		return
 	}
 
@@ -126,7 +124,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 		return
 	}
 	if !ok {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: "Сессия истекла. Отправьте ссылку заново."})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сессия истекла. Отправьте ссылку заново.")
 		return
 	}
 	_ = deletePendingURL(ctx, h.rdb, chatID)
@@ -174,7 +172,7 @@ func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, usern
 		return nil
 	})
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: "Не удалось скачать. Попробуйте ещё раз."})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось скачать. Попробуйте ещё раз.")
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", url, &chatID, username)
 	}
 	return sent
@@ -211,9 +209,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 		}
 
 		if notifyFallback && chosen.Height > 0 && chosen.Height < quality {
-			_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{
-				ChatID: chatID, Text: fmt.Sprintf("ℹ️ %dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height),
-			})
+			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("ℹ️ %dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height))
 		}
 
 		cacheType := videoCacheType(quality)
@@ -247,7 +243,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 	})
 
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: "Не удалось скачать. Попробуйте ещё раз."})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось скачать. Попробуйте ещё раз.")
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", url, &chatID, username)
 	}
 	return sent
@@ -255,16 +251,12 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 
 func (h *Handler) downloadAdaptive(ctx context.Context, chatID int64, url, cacheType string, chosen *chosenVideo, videoOpts *bot.SendVideoParams, rnd int, sent *bool) error {
 	if !acquireAdaptiveSlot() {
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{
-			ChatID: chatID, Text: "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.",
-		})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
 		return nil
 	}
 	if !hasEnoughDiskSpace() {
 		releaseAdaptiveSlot()
-		_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{
-			ChatID: chatID, Text: "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.",
-		})
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
 		return nil
 	}
 	defer releaseAdaptiveSlot()

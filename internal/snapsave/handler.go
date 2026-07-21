@@ -32,10 +32,6 @@ func handleUnderlineEnding(text string) string {
 
 var instagramStoriesPageRe = regexp.MustCompile(`instagram\.com/stories/[^/]+/?$`)
 
-func sendMessage(ctx context.Context, b *bot.Bot, chatID int64, text string) {
-	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
-}
-
 func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message string, adminUsername string, username, firstName *string) {
 	plat := platform.DetectPlatform(message)
 
@@ -55,7 +51,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 			return
 		}
 
-		sendMessage(ctx, b, chatID, fmt.Sprintf(
+		telegramapi.SendText(ctx, b, chatID, fmt.Sprintf(
 			"Не удалось скачать медиафайл.\nУбедитесь, что медиафайл существует и не является приватным.\nЕсли ошибка возникает многократно, пишите %s",
 			adminUsername,
 		))
@@ -65,7 +61,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	}
 
 	if resp.Data == nil || len(resp.Data.Media) == 0 {
-		sendMessage(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
+		telegramapi.SendText(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New("no media in response"), "media check", message, &chatID, username)
 		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
@@ -116,7 +112,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message, plat string, username, firstName *string) {
 	imgBuf, err := convertTweetToImage(ctx, message)
 	if err != nil || len(imgBuf) == 0 {
-		sendMessage(ctx, b, chatID, "Не удалось конвертировать твит в изображение.")
+		telegramapi.SendText(ctx, b, chatID, "Не удалось конвертировать твит в изображение.")
 		if err == nil {
 			err = errors.New("tweet to image conversion returned no data")
 		}

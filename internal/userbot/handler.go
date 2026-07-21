@@ -1,8 +1,8 @@
 package userbot
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -41,27 +41,27 @@ func (l *loadingHandle) delete(ctx context.Context) {
 }
 
 func (h *Handler) sendText(ctx context.Context, chatID int64, text string) {
-	_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+	_, _ = telegramapi.SendText(ctx, h.b, chatID, text)
 }
 
-func (h *Handler) sendDownloadedMedia(ctx context.Context, chatID int64, kind mediaKind, data []byte, caption string) (*models.Message, error) {
+func (h *Handler) sendDownloadedMedia(ctx context.Context, chatID int64, kind mediaKind, body io.Reader, caption string) (*models.Message, error) {
 	if kind == mediaPhoto {
 		return telegramapi.SafeSendPhoto(ctx, h.b, &bot.SendPhotoParams{
-			ChatID: chatID, Photo: &models.InputFileUpload{Filename: "photo.jpg", Data: bytes.NewReader(data)},
+			ChatID: chatID, Photo: &models.InputFileUpload{Filename: "photo.jpg", Data: body},
 			Caption: caption, DisableNotification: true,
 		})
 	}
 	return telegramapi.SafeSendVideo(ctx, h.b, &bot.SendVideoParams{
-		ChatID: chatID, Video: &models.InputFileUpload{Filename: "video.mp4", Data: bytes.NewReader(data)},
+		ChatID: chatID, Video: &models.InputFileUpload{Filename: "video.mp4", Data: body},
 		Caption: caption, DisableNotification: true, SupportsStreaming: true,
 	})
 }
 
-func inputMediaFor(kind mediaKind, data []byte, attachName, caption string) models.InputMedia {
+func inputMediaFor(kind mediaKind, body io.Reader, attachName, caption string) models.InputMedia {
 	if kind == mediaPhoto {
-		return &models.InputMediaPhoto{Media: attachName, MediaAttachment: bytes.NewReader(data), Caption: caption}
+		return &models.InputMediaPhoto{Media: attachName, MediaAttachment: body, Caption: caption}
 	}
-	return &models.InputMediaVideo{Media: attachName, MediaAttachment: bytes.NewReader(data), Caption: caption, SupportsStreaming: true}
+	return &models.InputMediaVideo{Media: attachName, MediaAttachment: body, Caption: caption, SupportsStreaming: true}
 }
 
 func isNoAccessError(err error) bool {

@@ -19,6 +19,10 @@ func SafeSendMessage(ctx context.Context, b *bot.Bot, params *bot.SendMessagePar
 	return msg, nil
 }
 
+func SendText(ctx context.Context, b *bot.Bot, chatID int64, text string) (*models.Message, error) {
+	return SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+}
+
 func SafeSendVideo(ctx context.Context, b *bot.Bot, params *bot.SendVideoParams) (*models.Message, error) {
 	msg, err := b.SendVideo(ctx, params)
 	if err != nil {

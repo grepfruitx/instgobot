@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -46,11 +47,12 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 		return false
 	}
 
-	media, ok := storyMediaOf(result.Stories[0])
+	storyMedia, ok := storyMediaOf(result.Stories[0])
 	var loc tg.InputFileLocationClass
 	var kind mediaKind
+	var size int64
 	if ok {
-		loc, kind, ok = extractDownloadable(media)
+		loc, kind, size, ok = extractDownloadable(storyMedia)
 	}
 	if !ok {
 		loading.delete(ctx)
@@ -59,16 +61,18 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 		return false
 	}
 
-	data, err := downloadMediaBytes(ctx, h.client.API(), loc)
-	if err != nil || len(data) == 0 {
+	if err := checkSize(size); err != nil {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Не удалось скачать сторис #%d.\n%s", storyID, config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
 
-	if _, err := h.sendDownloadedMedia(ctx, chatID, kind, data, config.BotTag); err != nil {
-		return h.genericStoriesFailure(ctx, chatID, loading, sourceURL, &username, err)
+	stream := downloadMediaStream(ctx, h.client.API(), loc)
+	_, sendErr := h.sendDownloadedMedia(ctx, chatID, kind, stream, config.BotTag)
+	stream.Close()
+	if sendErr != nil {
+		return h.genericStoriesFailure(ctx, chatID, loading, sourceURL, &username, sendErr)
 	}
 
 	loading.delete(ctx)
@@ -100,42 +104,58 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 	}
 
 	successCount := 0
-	var photoBatch, videoBatch [][]byte
+	var photoBatch, videoBatch []string
 
-	flush := func(batch *[][]byte, kind mediaKind, context string) {
+	flush := func(batch *[]string, kind mediaKind, context string) {
 		if len(*batch) == 0 {
 			return
 		}
-		media := make([]models.InputMedia, len(*batch))
-		for i, data := range *batch {
+		files := make([]*os.File, 0, len(*batch))
+		media := make([]models.InputMedia, 0, len(*batch))
+		for i, path := range *batch {
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			files = append(files, f)
 			caption := ""
 			if i == 0 {
 				caption = config.BotTag
 			}
-			media[i] = inputMediaFor(kind, data, fmt.Sprintf("attach://story%d", i), caption)
+			media = append(media, inputMediaFor(kind, f, fmt.Sprintf("attach://story%d", i), caption))
 		}
-		if _, err := telegramapi.SafeSendMediaGroup(ctx, h.b, &bot.SendMediaGroupParams{ChatID: chatID, Media: media, DisableNotification: true}); err != nil {
-			telegramapi.SendErrorToAdmin(ctx, h.b, err, context, "", &chatID, &username)
+		if len(media) > 0 {
+			if _, err := telegramapi.SafeSendMediaGroup(ctx, h.b, &bot.SendMediaGroupParams{ChatID: chatID, Media: media, DisableNotification: true}); err != nil {
+				telegramapi.SendErrorToAdmin(ctx, h.b, err, context, "", &chatID, &username)
+			}
+		}
+		for _, f := range files {
+			f.Close()
+			os.Remove(f.Name())
 		}
 		*batch = nil
 	}
 
 	for _, item := range result.Stories.Stories {
-		media, ok := storyMediaOf(item)
+		storyMedia, ok := storyMediaOf(item)
 		if !ok {
 			continue
 		}
-		loc, kind, extractOK := extractDownloadable(media)
+		loc, kind, size, extractOK := extractDownloadable(storyMedia)
 		if !extractOK {
 			continue
 		}
+		if err := checkSize(size); err != nil {
+			h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
+			continue
+		}
 
-		data, err := downloadMediaBytes(ctx, h.client.API(), loc)
-		if err != nil || len(data) == 0 {
+		path, err := downloadMediaToFile(ctx, h.client.API(), loc)
+		if err != nil {
 			var tooLarge *telegramapi.FileTooLargeError
 			if errors.As(err, &tooLarge) {
 				h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
-			} else if err != nil {
+			} else {
 				telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram stories download", "", &chatID, &username)
 			}
 			continue
@@ -143,12 +163,12 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 
 		successCount++
 		if kind == mediaPhoto {
-			photoBatch = append(photoBatch, data)
+			photoBatch = append(photoBatch, path)
 			if len(photoBatch) == 10 {
 				flush(&photoBatch, mediaPhoto, "sendMediaGroup photos")
 			}
 		} else {
-			videoBatch = append(videoBatch, data)
+			videoBatch = append(videoBatch, path)
 			if len(videoBatch) == 10 {
 				flush(&videoBatch, mediaVideo, "sendMediaGroup videos")
 			}

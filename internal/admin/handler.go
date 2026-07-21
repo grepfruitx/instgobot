@@ -24,7 +24,7 @@ func New(b *bot.Bot, st *store.Store) *Handler {
 }
 
 func (h *Handler) send(ctx context.Context, chatID int64, text string) {
-	_, _ = telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+	_, _ = telegramapi.SendText(ctx, h.b, chatID, text)
 }
 
 func (h *Handler) sendChunked(ctx context.Context, chatID int64, text string) {

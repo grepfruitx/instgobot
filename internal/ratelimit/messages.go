@@ -29,5 +29,5 @@ func SendGeneralLimitMessage(ctx context.Context, b *bot.Bot, chatID int64, rese
 		"⚠️ Превышен лимит запросов\n\nВы можете отправлять максимум %d запросов в минуту.\nПопробуйте снова через %d %s.\n\nЭто ограничение помогает поддерживать стабильную работу бота для всех пользователей. 🤖",
 		GeneralLimit, minutesLeft, minutesWord(minutesLeft),
 	)
-	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+	_, _ = telegramapi.SendText(ctx, b, chatID, text)
 }

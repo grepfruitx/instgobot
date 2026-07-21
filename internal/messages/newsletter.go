@@ -17,9 +17,7 @@ import (
 func ProcessNewsletterToggle(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64) {
 	subscribed, err := st.ToggleNewsletterSubscription(chatID)
 	if err != nil {
-		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID, Text: "Произошла ошибка при изменении настроек рассылки. Попробуйте позже.",
-		})
+		_, _ = telegramapi.SendText(ctx, b, chatID, "Произошла ошибка при изменении настроек рассылки. Попробуйте позже.")
 		return
 	}
 
@@ -27,7 +25,7 @@ func ProcessNewsletterToggle(ctx context.Context, b *bot.Bot, st *store.Store, c
 	if subscribed {
 		text = "✅ Подписка на рассылку включена!\n\nТеперь вы будете получать:\n• Объявления о новых функциях\n• Важные уведомления от бота\n\nОтключить рассылку: /newsletter"
 	}
-	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+	_, _ = telegramapi.SendText(ctx, b, chatID, text)
 }
 
 var featureCommandRe = regexp.MustCompile(`^/feat\s*`)
@@ -35,10 +33,7 @@ var featureCommandRe = regexp.MustCompile(`^/feat\s*`)
 func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, message string, adminUsername string, username, firstName *string) {
 	featureText := strings.TrimSpace(featureCommandRe.ReplaceAllString(message, ""))
 	if featureText == "" {
-		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID,
-			Text:   "💡 Расскажите нам о своей идее!\n\nИспользуйте команду так:\n/feat добавьте поддержку Pinterest\n\nМы рассмотрим ваше предложение и возможно добавим эту функцию в бот! ✨",
-		})
+		_, _ = telegramapi.SendText(ctx, b, chatID, "💡 Расскажите нам о своей идее!\n\nИспользуйте команду так:\n/feat добавьте поддержку Pinterest\n\nМы рассмотрим ваше предложение и возможно добавим эту функцию в бот! ✨")
 		return
 	}
 
@@ -64,14 +59,8 @@ func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, messag
 	}
 
 	if successCount > 0 {
-		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID,
-			Text:   "✅ Спасибо за предложение!\n\nВаша идея отправлена разработчикам.\nМы рассмотрим её и, возможно, добавим в будущих обновлениях! 🚀",
-		})
+		_, _ = telegramapi.SendText(ctx, b, chatID, "✅ Спасибо за предложение!\n\nВаша идея отправлена разработчикам.\nМы рассмотрим её и, возможно, добавим в будущих обновлениях! 🚀")
 		return
 	}
-	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-		ChatID: chatID,
-		Text:   fmt.Sprintf("❌ Произошла ошибка при отправке предложения.\nПопробуйте позже или обратитесь к администратору.\n%s", adminUsername),
-	})
+	_, _ = telegramapi.SendText(ctx, b, chatID, fmt.Sprintf("❌ Произошла ошибка при отправке предложения.\nПопробуйте позже или обратитесь к администратору.\n%s", adminUsername))
 }

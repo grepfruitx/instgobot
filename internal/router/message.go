@@ -23,7 +23,7 @@ import (
 var telegramUsernameRe = regexp.MustCompile(`^@\w{5,32}$`)
 
 func (r *Router) send(ctx context.Context, b *bot.Bot, chatID int64, text string) {
-	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+	_, _ = telegramapi.SendText(ctx, b, chatID, text)
 }
 
 func (r *Router) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Message) {

@@ -3,6 +3,7 @@ package userbot
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -76,14 +77,15 @@ func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Cl
 	type withMedia struct {
 		loc  tg.InputFileLocationClass
 		kind mediaKind
+		size int64
 	}
 	var items []withMedia
 	for _, m := range messages {
 		if m.Media == nil {
 			continue
 		}
-		if loc, kind, ok := extractDownloadable(m.Media); ok {
-			items = append(items, withMedia{loc, kind})
+		if loc, kind, size, ok := extractDownloadable(m.Media); ok && checkSize(size) == nil {
+			items = append(items, withMedia{loc, kind, size})
 		}
 	}
 	if len(items) == 0 {
@@ -91,25 +93,38 @@ func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Cl
 	}
 
 	if len(items) == 1 {
-		data, err := downloadMediaBytes(ctx, api, items[0].loc)
-		if err != nil || len(data) == 0 {
-			return false
-		}
-		_, err = h.sendDownloadedMedia(ctx, chatID, items[0].kind, data, config.BotTag)
+		stream := downloadMediaStream(ctx, api, items[0].loc)
+		defer stream.Close()
+		_, err := h.sendDownloadedMedia(ctx, chatID, items[0].kind, stream, config.BotTag)
 		return err == nil
 	}
 
+	var files []*os.File
+	defer func() {
+		for _, f := range files {
+			f.Close()
+			os.Remove(f.Name())
+		}
+	}()
+
 	media := make([]models.InputMedia, 0, len(items))
 	for i, it := range items {
-		data, err := downloadMediaBytes(ctx, api, it.loc)
-		if err != nil || len(data) == 0 {
+		path, err := downloadMediaToFile(ctx, api, it.loc)
+		if err != nil {
 			continue
 		}
+		f, err := os.Open(path)
+		if err != nil {
+			os.Remove(path)
+			continue
+		}
+		files = append(files, f)
+
 		caption := ""
 		if i == 0 {
 			caption = config.BotTag
 		}
-		media = append(media, inputMediaFor(it.kind, data, fmt.Sprintf("attach://post%d", i), caption))
+		media = append(media, inputMediaFor(it.kind, f, fmt.Sprintf("attach://post%d", i), caption))
 	}
 	if len(media) == 0 {
 		return false
