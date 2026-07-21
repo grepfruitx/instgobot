@@ -7,6 +7,6 @@ import (
 )
 
 func New(cfg *config.Config, opts ...bot.Option) (*bot.Bot, error) {
-	allOpts := append([]bot.Option{bot.WithServerURL(cfg.LocalBotAPIURL)}, opts...)
+	allOpts := append([]bot.Option{bot.WithServerURL(cfg.LocalBotAPIURL), bot.WithSkipGetMe()}, opts...)
 	return bot.New(cfg.TelegramBotToken, allOpts...)
 }
