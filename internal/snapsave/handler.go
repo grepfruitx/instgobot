@@ -1,0 +1,140 @@
+package snapsave
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
+
+	smd "github.com/grepfruitx/snapmedia-downloader"
+
+	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/media"
+	"github.com/grepfruitx/instgobot/internal/platform"
+	"github.com/grepfruitx/instgobot/internal/store"
+	"github.com/grepfruitx/instgobot/internal/telegramapi"
+)
+
+const chromeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+
+func handleUnderlineEnding(text string) string {
+	if strings.HasSuffix(text, "_") {
+		return text + "/"
+	}
+	return text
+}
+
+var instagramStoriesPageRe = regexp.MustCompile(`instagram\.com/stories/[^/]+/?$`)
+
+func sendMessage(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+	_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{ChatID: chatID, Text: text})
+}
+
+func recordDownload(st *store.Store, chatID int64, url, plat, mediaType string, success bool, username, firstName *string) {
+	if err := st.RecordDownload(chatID, url, plat, mediaType, success, username, firstName); err != nil {
+		slog.Error("record download failed", "error", err, "chat_id", chatID)
+	}
+}
+
+func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message string, adminUsername string, username, firstName *string) {
+	plat := platform.DetectPlatform(message)
+
+	downloadTarget := message
+	if plat == "instagram" {
+		if igUsername, ok := platform.GetInstagramProfileUsername(message); ok {
+			downloadTarget = platform.ToInstagramStoriesLink(igUsername)
+		}
+	}
+
+	formatted := handleUnderlineEnding(downloadTarget)
+	resp := smd.Download(formatted, &smd.Options{Retry: 3, RetryDelay: 500 * time.Millisecond, UserAgent: chromeUA})
+
+	if !resp.Success {
+		if plat == "twitter" {
+			processTweetImageFallback(ctx, b, st, chatID, message, plat, username, firstName)
+			return
+		}
+
+		sendMessage(ctx, b, chatID, fmt.Sprintf(
+			"Не удалось скачать медиафайл.\nУбедитесь, что медиафайл существует и не является приватным.\nЕсли ошибка возникает многократно, пишите %s",
+			adminUsername,
+		))
+		telegramapi.SendErrorToAdmin(ctx, b, errors.New(resp.Message), "snapsave download", message, &chatID, username)
+		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		return
+	}
+
+	if resp.Data == nil || len(resp.Data.Media) == 0 {
+		sendMessage(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
+		telegramapi.SendErrorToAdmin(ctx, b, errors.New("no media in response"), "media check", message, &chatID, username)
+		recordDownload(st, chatID, message, plat, "unknown", false, username, firstName)
+		return
+	}
+
+	var videos, photos []string
+	for _, m := range resp.Data.Media {
+		switch m.Type {
+		case smd.MediaVideo:
+			videos = append(videos, m.URL)
+		case smd.MediaImage:
+			photos = append(photos, m.URL)
+		}
+	}
+
+	isEphemeralStoriesPage := instagramStoriesPageRe.MatchString(strings.Split(downloadTarget, "?")[0])
+	var postURL *string
+	if !isEphemeralStoriesPage {
+		u := strings.TrimSuffix(strings.Split(message, "?")[0], "/")
+		postURL = &u
+	}
+
+	var photoOK, videoOK bool
+	switch len(photos) {
+	case 1:
+		photoOK, _ = media.ProcessSinglePhoto(ctx, b, st, chatID, photos[0], username, postURL)
+	default:
+		if len(photos) > 1 {
+			photoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, photos, media.KindPhoto, username, postURL)
+		}
+	}
+	switch len(videos) {
+	case 1:
+		videoOK, _ = media.ProcessSingleVideo(ctx, b, st, chatID, videos[0], username, postURL)
+	default:
+		if len(videos) > 1 {
+			videoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, videos, media.KindVideo, username, postURL)
+		}
+	}
+
+	mediaType := "video"
+	if len(photos) > 0 {
+		mediaType = "photo"
+	}
+	recordDownload(st, chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
+}
+
+func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message, plat string, username, firstName *string) {
+	imgBuf, err := convertTweetToImage(ctx, message)
+	if err != nil || len(imgBuf) == 0 {
+		sendMessage(ctx, b, chatID, "Не удалось конвертировать твит в изображение.")
+		if err == nil {
+			err = errors.New("tweet to image conversion returned no data")
+		}
+		telegramapi.SendErrorToAdmin(ctx, b, err, "tweet to image", message, &chatID, username)
+		recordDownload(st, chatID, message, plat, "image", false, username, firstName)
+		return
+	}
+
+	_, _ = telegramapi.SafeSendPhoto(ctx, b, &bot.SendPhotoParams{
+		ChatID: chatID, Photo: &models.InputFileUpload{Filename: "tweet.png", Data: bytes.NewReader(imgBuf)},
+		Caption: config.BotTag, DisableNotification: true,
+	})
+	recordDownload(st, chatID, message, plat, "image", true, username, firstName)
+}
