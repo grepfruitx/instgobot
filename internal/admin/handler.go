@@ -6,20 +6,24 @@ import (
 	"strings"
 
 	"github.com/go-telegram/bot"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/grepfruitx/instgobot/internal/config"
 	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
+	"github.com/grepfruitx/instgobot/internal/userbot"
 )
 
 type Handler struct {
-	b  *bot.Bot
-	st *store.Store
+	b   *bot.Bot
+	st  *store.Store
+	rdb *redis.Client
+	uc  *userbot.Client
 }
 
-func New(b *bot.Bot, st *store.Store) *Handler {
-	return &Handler{b: b, st: st}
+func New(b *bot.Bot, st *store.Store, rdb *redis.Client, uc *userbot.Client) *Handler {
+	return &Handler{b: b, st: st, rdb: rdb, uc: uc}
 }
 
 func (h *Handler) send(ctx context.Context, chatID int64, text string) {
@@ -96,6 +100,18 @@ func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message strin
 		h.handleRetention(ctx, chatID)
 	case "/activity":
 		h.handleActivity(ctx, chatID)
+	case "/clearcache":
+		h.handleClearCache(ctx, chatID, args)
+	case "/ratelimits":
+		h.handleRateLimitHits(ctx, chatID)
+	case "/ban":
+		h.handleBan(ctx, chatID, args)
+	case "/unban":
+		h.handleUnban(ctx, chatID, args)
+	case "/banned":
+		h.handleBannedList(ctx, chatID)
+	case "/health":
+		h.handleHealth(ctx, chatID)
 	default:
 		return false
 	}

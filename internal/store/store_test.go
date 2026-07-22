@@ -325,3 +325,88 @@ func TestGetActivityByHourAndWeekday(t *testing.T) {
 		t.Fatalf("expected 1 total download across weekday buckets, got %d: %+v", weekdayTotal, weekdays)
 	}
 }
+
+func TestClearCacheMatchesRawAndNormalized(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.SetCachedFileID("https://example.com/p", "video", 0, "file1"); err != nil {
+		t.Fatalf("SetCachedFileID: %v", err)
+	}
+	if err := s.SetCachedFileID("https://youtube.com/watch?v=abc", "yt_v_720", 0, "file2"); err != nil {
+		t.Fatalf("SetCachedFileID: %v", err)
+	}
+
+	rows, err := s.ClearCache("https://example.com/p/")
+	if err != nil {
+		t.Fatalf("ClearCache: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("expected 1 row cleared via normalized match, got %d", rows)
+	}
+
+	rows, err = s.ClearCache("https://youtube.com/watch?v=abc")
+	if err != nil {
+		t.Fatalf("ClearCache: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("expected 1 row cleared via raw match, got %d", rows)
+	}
+}
+
+func TestBanUnbanUser(t *testing.T) {
+	s := newTestStore(t)
+
+	banned, err := s.IsBanned(800)
+	if err != nil || banned {
+		t.Fatalf("expected not banned by default, got %v err=%v", banned, err)
+	}
+
+	if err := s.BanUser(800); err != nil {
+		t.Fatalf("BanUser: %v", err)
+	}
+	banned, err = s.IsBanned(800)
+	if err != nil || !banned {
+		t.Fatalf("expected banned, got %v err=%v", banned, err)
+	}
+
+	users, err := s.GetBannedUsers()
+	if err != nil || len(users) != 1 || users[0].ChatID != 800 {
+		t.Fatalf("unexpected banned users list: %+v err=%v", users, err)
+	}
+
+	if err := s.UnbanUser(800); err != nil {
+		t.Fatalf("UnbanUser: %v", err)
+	}
+	banned, err = s.IsBanned(800)
+	if err != nil || banned {
+		t.Fatalf("expected unbanned, got %v err=%v", banned, err)
+	}
+}
+
+func TestRateLimitHits(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordRateLimitHit("general"); err != nil {
+		t.Fatalf("RecordRateLimitHit: %v", err)
+	}
+	if err := s.RecordRateLimitHit("general"); err != nil {
+		t.Fatalf("RecordRateLimitHit: %v", err)
+	}
+	if err := s.RecordRateLimitHit("youtube"); err != nil {
+		t.Fatalf("RecordRateLimitHit: %v", err)
+	}
+
+	hits, err := s.GetRateLimitHits()
+	if err != nil {
+		t.Fatalf("GetRateLimitHits: %v", err)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("expected 2 kinds, got %d: %+v", len(hits), hits)
+	}
+	if hits[0].Kind != "general" || hits[0].Count != 2 {
+		t.Fatalf("unexpected general hits: %+v", hits[0])
+	}
+	if hits[1].Kind != "youtube" || hits[1].Count != 1 {
+		t.Fatalf("unexpected youtube hits: %+v", hits[1])
+	}
+}

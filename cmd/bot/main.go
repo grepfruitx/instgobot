@@ -82,7 +82,7 @@ func main() {
 	}()
 
 	ytHandler := youtube.New(b, st, rdb, limiter, cfg)
-	adminHandler := admin.New(b, st)
+	adminHandler := admin.New(b, st, rdb, uc)
 	userHandler := userbot.New(uc, b, st)
 	rt = router.New(st, userHandler, ytHandler, adminHandler, limiter, cfg.AdminUsername)
 

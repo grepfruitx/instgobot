@@ -53,7 +53,7 @@ func newTestBotCapturingMessages(t *testing.T) (*bot.Bot, *[]sentMessage) {
 func TestHandleCommandRejectsNonAdmin(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 
 	nonAdminID := int64(1)
 	if handled := h.HandleCommand(t.Context(), 1, "/stats", nonAdminID); handled {
@@ -67,7 +67,7 @@ func TestHandleCommandRejectsNonAdmin(t *testing.T) {
 func TestHandleCommandStats(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 
 	adminID := config.AdminUserIDs[0]
 	if handled := h.HandleCommand(t.Context(), 1, "/stats", adminID); !handled {
@@ -81,7 +81,7 @@ func TestHandleCommandStats(t *testing.T) {
 func TestHandleCommandUsersEmpty(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 
 	adminID := config.AdminUserIDs[0]
 	h.HandleCommand(t.Context(), 1, "/users", adminID)
@@ -93,7 +93,7 @@ func TestHandleCommandUsersEmpty(t *testing.T) {
 func TestPlatformToggleAndStatus(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 	adminID := config.AdminUserIDs[0]
 
 	h.HandleCommand(t.Context(), 1, "/poff instagram", adminID)
@@ -117,7 +117,7 @@ func TestPlatformToggleAndStatus(t *testing.T) {
 func TestPlatformToggleRejectsUnknownPlatform(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 	adminID := config.AdminUserIDs[0]
 
 	h.HandleCommand(t.Context(), 1, "/poff nonsense", adminID)
@@ -129,7 +129,7 @@ func TestPlatformToggleRejectsUnknownPlatform(t *testing.T) {
 func TestHandleAnnounceNoUsers(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 	adminID := config.AdminUserIDs[0]
 
 	h.HandleCommand(t.Context(), 1, "/announce hello world", adminID)
@@ -141,7 +141,7 @@ func TestHandleAnnounceNoUsers(t *testing.T) {
 func TestHandleAnnounceEmptyText(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 	adminID := config.AdminUserIDs[0]
 
 	h.HandleCommand(t.Context(), 1, "/announce", adminID)
@@ -153,7 +153,7 @@ func TestHandleAnnounceEmptyText(t *testing.T) {
 func TestUnknownCommandNotHandled(t *testing.T) {
 	st := newTestStore(t)
 	b, _ := newTestBotCapturingMessages(t)
-	h := New(b, st)
+	h := New(b, st, nil, nil)
 	adminID := config.AdminUserIDs[0]
 
 	if handled := h.HandleCommand(t.Context(), 1, "/notacommand", adminID); handled {

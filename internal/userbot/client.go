@@ -3,6 +3,7 @@ package userbot
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
@@ -13,9 +14,10 @@ import (
 )
 
 type Client struct {
-	tg    *telegram.Client
-	api   *tg.Client
-	peers *peers.Manager
+	tg        *telegram.Client
+	api       *tg.Client
+	peers     *peers.Manager
+	connected atomic.Bool
 }
 
 func NewClient(cfg *config.Config) *Client {
@@ -31,8 +33,6 @@ func NewClient(cfg *config.Config) *Client {
 }
 
 func (c *Client) Run(ctx context.Context, ready func()) error {
-	// blocks for the connection's lifetime — run in its own goroutine.
-	// API()/Peers() are only safe to call from elsewhere after ready() fires.
 	return c.tg.Run(ctx, func(ctx context.Context) error {
 		status, err := c.tg.Auth().Status(ctx)
 		if err != nil {
@@ -41,6 +41,9 @@ func (c *Client) Run(ctx context.Context, ready func()) error {
 		if !status.Authorized {
 			return fmt.Errorf("userbot session not authorized — run the login flow first (see cmd/userbot-login)")
 		}
+
+		c.connected.Store(true)
+		defer c.connected.Store(false)
 
 		if ready != nil {
 			ready()
@@ -53,11 +56,9 @@ func (c *Client) Run(ctx context.Context, ready func()) error {
 
 func (c *Client) API() *tg.Client       { return c.api }
 func (c *Client) Peers() *peers.Manager { return c.peers }
+func (c *Client) Connected() bool       { return c.connected.Load() }
 
 func (c *Client) SyncDialogs(ctx context.Context) error {
-	// primes access_hash for every dialog — private-channel resolution by bare
-	// ID needs it, and the manager only has it for peers already seen. Call
-	// once after Run's ready signal.
 	dialogs, err := c.api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
 		OffsetPeer: &tg.InputPeerEmpty{},
 		Limit:      200,

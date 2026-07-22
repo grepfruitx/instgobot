@@ -45,6 +45,12 @@ func (r *Router) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 		}
 	}
 
+	if !config.IsAdmin(userID) {
+		if banned, _ := r.st.IsBanned(chatID); banned {
+			return
+		}
+	}
+
 	switch {
 	case text == "/start":
 		r.send(ctx, b, chatID, messages.StartMessage)
@@ -92,6 +98,7 @@ func (r *Router) handleTelegramContent(ctx context.Context, b *bot.Bot, text str
 		return
 	}
 	if !rl.Allowed {
+		_ = r.st.RecordRateLimitHit("tgstories")
 		minutesLeft := int(math.Ceil(time.Until(rl.ResetTime).Minutes()))
 		r.send(ctx, b, chatID, fmt.Sprintf("⚡ Лимит: 1 запрос раз в 3 минуты. Попробуйте снова через %d мин.", minutesLeft))
 		return
@@ -136,6 +143,7 @@ func (r *Router) handleMediaURL(ctx context.Context, b *bot.Bot, chatID int64, u
 			return
 		}
 		if !rl.Allowed {
+			_ = r.st.RecordRateLimitHit("general")
 			ratelimit.SendGeneralLimitMessage(ctx, b, chatID, rl.ResetTime)
 			return
 		}

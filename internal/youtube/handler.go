@@ -51,6 +51,7 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, u
 	if err != nil {
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube rate limit peek", url, &chatID, username)
 	} else if !rl.Allowed {
+		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
 		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
 		return
@@ -146,6 +147,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 	}
 	if !rl.Allowed {
 		markDownloadDone(userID)
+		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
 		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
 		return

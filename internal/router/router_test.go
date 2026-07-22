@@ -68,7 +68,7 @@ func newTestRouter(t *testing.T, st *store.Store, b *bot.Bot) *Router {
 	t.Cleanup(func() { rdb.Close() })
 
 	limiter := ratelimit.New(rdb)
-	adminHandler := admin.New(b, st)
+	adminHandler := admin.New(b, st, rdb, nil)
 	ytHandler := youtube.New(b, st, rdb, limiter, &config.Config{YtDlpPath: "yt-dlp"})
 
 	return New(st, nil, ytHandler, adminHandler, limiter, "@someadmin")

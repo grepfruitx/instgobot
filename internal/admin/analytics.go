@@ -6,6 +6,38 @@ import (
 	"strings"
 )
 
+func (h *Handler) handleClearCache(ctx context.Context, chatID int64, args []string) {
+	if len(args) == 0 {
+		h.send(ctx, chatID, "Использование: /clearcache <url>")
+		return
+	}
+	rows, err := h.st.ClearCache(args[0])
+	if err != nil {
+		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при очистке кэша: %v", err))
+		return
+	}
+	h.send(ctx, chatID, fmt.Sprintf("🗑️ Удалено записей из кэша: %d", rows))
+}
+
+func (h *Handler) handleRateLimitHits(ctx context.Context, chatID int64) {
+	hits, err := h.st.GetRateLimitHits()
+	if err != nil {
+		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении статистики рейт-лимитов: %v", err))
+		return
+	}
+	if len(hits) == 0 {
+		h.send(ctx, chatID, "📭 Срабатываний рейт-лимита пока не было")
+		return
+	}
+
+	var sb strings.Builder
+	sb.WriteString("⛔ Срабатывания рейт-лимита:\n\n")
+	for _, hit := range hits {
+		fmt.Fprintf(&sb, "%s — %d\n", hit.Kind, hit.Count)
+	}
+	h.send(ctx, chatID, sb.String())
+}
+
 func (h *Handler) handleErrorTop(ctx context.Context, chatID int64, args []string) {
 	clusters, err := h.st.GetTopErrorMessages(parseLimit(args, 10))
 	if err != nil {

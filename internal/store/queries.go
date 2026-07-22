@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"log/slog"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -331,4 +332,46 @@ func (s *Store) SetCachedFileID(postURL, mediaType string, index int, fileID str
 	return s.db.Exec(`
 		INSERT OR REPLACE INTO media_cache (post_url, media_type, media_index, file_id) VALUES (?, ?, ?, ?)
 	`, postURL, mediaType, index, fileID).Error
+}
+
+func (s *Store) ClearCache(postURL string) (int64, error) {
+	normalized := strings.TrimSuffix(strings.Split(postURL, "?")[0], "/")
+	res := s.db.Exec(`DELETE FROM media_cache WHERE post_url = ? OR post_url = ?`, postURL, normalized)
+	return res.RowsAffected, res.Error
+}
+
+func (s *Store) BanUser(chatID int64) error {
+	return s.db.Exec(`
+		INSERT INTO banned_users (chat_id, banned_at) VALUES (?, ?)
+		ON CONFLICT (chat_id) DO NOTHING
+	`, chatID, nowISO()).Error
+}
+
+func (s *Store) UnbanUser(chatID int64) error {
+	return s.db.Exec(`DELETE FROM banned_users WHERE chat_id = ?`, chatID).Error
+}
+
+func (s *Store) IsBanned(chatID int64) (bool, error) {
+	var count int64
+	err := s.db.Model(&BannedUser{}).Where("chat_id = ?", chatID).Count(&count).Error
+	return count > 0, err
+}
+
+func (s *Store) GetBannedUsers() ([]BannedUser, error) {
+	var users []BannedUser
+	err := s.db.Order("banned_at desc").Find(&users).Error
+	return users, err
+}
+
+func (s *Store) RecordRateLimitHit(kind string) error {
+	return s.db.Exec(`
+		INSERT INTO rate_limit_hits (kind, count) VALUES (?, 1)
+		ON CONFLICT (kind) DO UPDATE SET count = count + 1
+	`, kind).Error
+}
+
+func (s *Store) GetRateLimitHits() ([]RateLimitHit, error) {
+	var results []RateLimitHit
+	err := s.db.Order("kind").Find(&results).Error
+	return results, err
 }

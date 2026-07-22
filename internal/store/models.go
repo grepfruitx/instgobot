@@ -60,3 +60,17 @@ type CacheStats struct {
 }
 
 func (CacheStats) TableName() string { return "cache_stats" }
+
+type BannedUser struct {
+	ChatID   int64  `gorm:"column:chat_id;primaryKey"`
+	BannedAt string `gorm:"column:banned_at;not null"`
+}
+
+func (BannedUser) TableName() string { return "banned_users" }
+
+type RateLimitHit struct {
+	Kind  string `gorm:"column:kind;primaryKey"`
+	Count int64  `gorm:"column:count;not null;default:0"`
+}
+
+func (RateLimitHit) TableName() string { return "rate_limit_hits" }
