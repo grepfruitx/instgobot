@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/go-telegram/bot"
 
@@ -80,7 +79,7 @@ func SendErrorToAdmin(ctx context.Context, b *bot.Bot, err error, errContext str
 	if chatID != nil {
 		lines = append(lines, fmt.Sprintf("👤 Chat ID: %d", *chatID), "")
 	}
-	lines = append(lines, fmt.Sprintf("⏰ Время: %s", time.Now().Format("02.01.2006, 15:04:05")))
+	lines = append(lines, fmt.Sprintf("⏰ Время: %s", config.NowMoscowStr()))
 
 	text := strings.Join(lines, "\n")
 

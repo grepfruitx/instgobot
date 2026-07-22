@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/go-telegram/bot"
 
@@ -46,7 +45,7 @@ func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, messag
 
 	adminMessage := fmt.Sprintf(
 		"💡 Новое предложение функции!\n\n👤 От пользователя: %s\n🆔 Chat ID: %d\n\n📝 Предложение:\n%s\n\n⏰ Время: %s",
-		userInfo, chatID, featureText, time.Now().Format("02.01.2006, 15:04:05"),
+		userInfo, chatID, featureText, config.NowMoscowStr(),
 	)
 
 	successCount := 0

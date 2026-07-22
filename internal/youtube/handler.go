@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"math/rand"
 	"os"
@@ -224,12 +225,18 @@ func fetchThumbnail(ctx context.Context, url string) []byte {
 	}
 	resp, err := media.FetchWithTimeout(ctx, url, 5*time.Second)
 	if err != nil {
+		slog.Warn("thumbnail fetch failed", "url", url, "error", err)
 		return nil
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		slog.Warn("thumbnail fetch non-2xx", "url", url, "status", resp.StatusCode)
+		return nil
+	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
+		slog.Warn("thumbnail read failed", "url", url, "error", err)
 		return nil
 	}
 	return data

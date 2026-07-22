@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/grepfruitx/instgobot/internal/config"
 )
 
 func (h *Handler) handleUsers(ctx context.Context, chatID int64, args []string) {
@@ -23,7 +25,7 @@ func (h *Handler) handleUsers(ctx context.Context, chatID int64, args []string) 
 		fmt.Fprintf(&sb, "%d. %s\n", i+1, displayName(u.Username, u.FirstName))
 		fmt.Fprintf(&sb, "   📊 Скачивания: %d\n", u.DownloadCount)
 		fmt.Fprintf(&sb, "   ❌ Ошибки: %d\n", u.ErrorCount)
-		fmt.Fprintf(&sb, "   🕐 Последняя активность: %s\n", formatRuDateTime(u.LastActivity))
+		fmt.Fprintf(&sb, "   🕐 Последняя активность: %s\n", config.FormatMoscow(u.LastActivity))
 		fmt.Fprintf(&sb, "   🆔 ID: %d\n\n", u.ChatID)
 	}
 	h.sendChunked(ctx, chatID, sb.String())
@@ -37,7 +39,7 @@ func (h *Handler) handleStats(ctx context.Context, chatID int64) {
 	}
 	h.send(ctx, chatID, fmt.Sprintf(
 		"📊 Общая статистика бота:\n\n👥 Всего пользователей: %d\n📱 Активных за 24ч: %d\n✅ Успешных скачиваний: %d\n❌ Всего ошибок: %d\n\n⏰ Обновлено: %s",
-		stats.TotalUsers, stats.ActiveUsers24h, stats.TotalDownloads, stats.TotalErrors, nowRu(),
+		stats.TotalUsers, stats.ActiveUsers24h, stats.TotalDownloads, stats.TotalErrors, config.NowMoscowStr(),
 	))
 }
 
@@ -97,7 +99,7 @@ func (h *Handler) handleErrors(ctx context.Context, chatID int64, args []string)
 		fmt.Fprintf(&sb, "   🏷️ Контекст: %s\n", e.ErrorContext)
 		fmt.Fprintf(&sb, "   💬 Сообщение: %s\n", originalMessage)
 		fmt.Fprintf(&sb, "   ⚠️ Ошибка: %s\n", errMsg)
-		fmt.Fprintf(&sb, "   🕐 Время: %s\n\n", formatRuDateTime(e.Timestamp))
+		fmt.Fprintf(&sb, "   🕐 Время: %s\n\n", config.FormatMoscow(e.Timestamp))
 	}
 	h.sendChunked(ctx, chatID, sb.String())
 }
@@ -114,6 +116,6 @@ func (h *Handler) handleAnnounceCount(ctx context.Context, chatID int64) {
 	}
 	h.send(ctx, chatID, fmt.Sprintf(
 		"📊 Статистика подписок на рассылку:\n\n👥 Всего пользователей в базе: %d\n🔔 Подписаны на рассылку: %d\n🔕 Отписались от рассылки: %d\n\n📈 Процент подписчиков: %d%%\n\n⏰ Проверено: %s",
-		stats.Total, stats.Subscribed, stats.Unsubscribed, percent, nowRu(),
+		stats.Total, stats.Subscribed, stats.Unsubscribed, percent, config.NowMoscowStr(),
 	))
 }

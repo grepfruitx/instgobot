@@ -2,6 +2,7 @@ package config
 
 import (
 	"slices"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -12,6 +13,22 @@ var AdminUserIDs = []int64{324025710, 542142955}
 
 func IsAdmin(userID int64) bool {
 	return slices.Contains(AdminUserIDs, userID)
+}
+
+const ruTimeLayout = "02.01.2006, 15:04:05"
+
+var moscowLoc = time.FixedZone("MSK", 3*60*60)
+
+func NowMoscowStr() string {
+	return time.Now().In(moscowLoc).Format(ruTimeLayout)
+}
+
+func FormatMoscow(iso string) string {
+	t, err := time.Parse("2006-01-02T15:04:05.000Z", iso)
+	if err != nil {
+		return iso
+	}
+	return t.In(moscowLoc).Format(ruTimeLayout)
 }
 
 type Config struct {

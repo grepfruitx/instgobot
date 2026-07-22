@@ -4,7 +4,6 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-telegram/bot"
 
@@ -31,18 +30,6 @@ func (h *Handler) sendChunked(ctx context.Context, chatID int64, text string) {
 	for _, chunk := range messages.SplitMessage(text, messages.DefaultMaxLength) {
 		h.send(ctx, chatID, chunk)
 	}
-}
-
-func nowRu() string {
-	return time.Now().Format("02.01.2006, 15:04:05")
-}
-
-func formatRuDateTime(iso string) string {
-	t, err := time.Parse("2006-01-02T15:04:05.000Z", iso)
-	if err != nil {
-		return iso
-	}
-	return t.Format("02.01.2006, 15:04:05")
 }
 
 func displayName(username, firstName *string) string {
