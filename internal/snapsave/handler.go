@@ -101,18 +101,18 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	var photoOK, videoOK bool
 	switch len(photos) {
 	case 1:
-		photoOK, _ = media.ProcessSinglePhoto(ctx, b, st, chatID, photos[0], username, postURL)
+		photoOK, _ = media.ProcessSinglePhoto(ctx, b, st, chatID, photos[0], plat, username, postURL)
 	default:
 		if len(photos) > 1 {
-			photoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, photos, media.KindPhoto, username, postURL)
+			photoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, photos, media.KindPhoto, plat, username, postURL)
 		}
 	}
 	switch len(videos) {
 	case 1:
-		videoOK, _ = media.ProcessSingleVideo(ctx, b, st, chatID, videos[0], username, postURL)
+		videoOK, _ = media.ProcessSingleVideo(ctx, b, st, chatID, videos[0], plat, username, postURL)
 	default:
 		if len(videos) > 1 {
-			videoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, videos, media.KindVideo, username, postURL)
+			videoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, videos, media.KindVideo, plat, username, postURL)
 		}
 	}
 
@@ -133,10 +133,14 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 			ChatID: chatID, Photo: &models.InputFileString{Data: cached},
 			Caption: config.BotTag, DisableNotification: true,
 		}); err == nil {
+			_ = st.RecordCacheEvent(plat, true)
 			st.RecordDownloadLogged(chatID, message, plat, "image", true, username, firstName)
 			return
 		}
+		_ = st.RecordCacheEvent(plat, false)
 		// stale file_id — fall through to re-render
+	} else {
+		_ = st.RecordCacheEvent(plat, false)
 	}
 
 	imgBuf, err := convertTweetToImage(ctx, message)

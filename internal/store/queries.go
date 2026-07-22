@@ -143,6 +143,98 @@ func (s *Store) GetPlatformStats() ([]PlatformStat, error) {
 	return results, err
 }
 
+type ErrorCluster struct {
+	ErrorMessage string
+	Count        int64
+}
+
+func (s *Store) GetTopErrorMessages(limit int) ([]ErrorCluster, error) {
+	var results []ErrorCluster
+	err := s.db.Raw(`
+		SELECT error_message, COUNT(*) as count
+		FROM errors
+		GROUP BY error_message
+		ORDER BY count DESC
+		LIMIT ?
+	`, limit).Scan(&results).Error
+	return results, err
+}
+
+func (s *Store) RecordCacheEvent(platform string, hit bool) error {
+	if hit {
+		return s.db.Exec(`
+			INSERT INTO cache_stats (platform, hits, misses) VALUES (?, 1, 0)
+			ON CONFLICT (platform) DO UPDATE SET hits = hits + 1
+		`, platform).Error
+	}
+	return s.db.Exec(`
+		INSERT INTO cache_stats (platform, hits, misses) VALUES (?, 0, 1)
+		ON CONFLICT (platform) DO UPDATE SET misses = misses + 1
+	`, platform).Error
+}
+
+func (s *Store) GetCacheStats() ([]CacheStats, error) {
+	var results []CacheStats
+	err := s.db.Order("platform").Find(&results).Error
+	return results, err
+}
+
+type RetentionStats struct {
+	NewUsersToday    int64
+	NewUsersThisWeek int64
+	InactiveOver7d   int64
+	InactiveOver30d  int64
+}
+
+func (s *Store) GetRetentionStats() (RetentionStats, error) {
+	var r RetentionStats
+	if err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(first_seen) > datetime('now', '-1 day')`).Scan(&r.NewUsersToday).Error; err != nil {
+		return r, err
+	}
+	if err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(first_seen) > datetime('now', '-7 days')`).Scan(&r.NewUsersThisWeek).Error; err != nil {
+		return r, err
+	}
+	if err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(last_activity) <= datetime('now', '-7 days')`).Scan(&r.InactiveOver7d).Error; err != nil {
+		return r, err
+	}
+	if err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(last_activity) <= datetime('now', '-30 days')`).Scan(&r.InactiveOver30d).Error; err != nil {
+		return r, err
+	}
+	return r, nil
+}
+
+type HourActivity struct {
+	Hour  int
+	Count int64
+}
+
+func (s *Store) GetActivityByHour() ([]HourActivity, error) {
+	var results []HourActivity
+	err := s.db.Raw(`
+		SELECT CAST(strftime('%H', datetime(timestamp, '+3 hours')) AS INTEGER) as hour, COUNT(*) as count
+		FROM downloads
+		GROUP BY hour
+		ORDER BY hour
+	`).Scan(&results).Error
+	return results, err
+}
+
+type WeekdayActivity struct {
+	Weekday int // 0=Sunday..6=Saturday, Moscow-local via the same +3h shift as GetActivityByHour
+	Count   int64
+}
+
+func (s *Store) GetActivityByWeekday() ([]WeekdayActivity, error) {
+	var results []WeekdayActivity
+	err := s.db.Raw(`
+		SELECT CAST(strftime('%w', datetime(timestamp, '+3 hours')) AS INTEGER) as weekday, COUNT(*) as count
+		FROM downloads
+		GROUP BY weekday
+		ORDER BY weekday
+	`).Scan(&results).Error
+	return results, err
+}
+
 type NewsletterUser struct {
 	ChatID    int64 `gorm:"column:chat_id"`
 	Username  *string

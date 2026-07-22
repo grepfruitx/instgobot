@@ -81,15 +81,15 @@ func messageFileID(kind Kind, msg *models.Message) string {
 	return ""
 }
 
-func ProcessSingleVideo(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, username *string, postURL *string) (bool, error) {
-	return ProcessSingleMedia(ctx, b, st, chatID, url, KindVideo, username, postURL)
+func ProcessSingleVideo(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, platform string, username *string, postURL *string) (bool, error) {
+	return ProcessSingleMedia(ctx, b, st, chatID, url, KindVideo, platform, username, postURL)
 }
 
-func ProcessSinglePhoto(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, username *string, postURL *string) (bool, error) {
-	return ProcessSingleMedia(ctx, b, st, chatID, url, KindPhoto, username, postURL)
+func ProcessSinglePhoto(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, platform string, username *string, postURL *string) (bool, error) {
+	return ProcessSingleMedia(ctx, b, st, chatID, url, KindPhoto, platform, username, postURL)
 }
 
-func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, username *string, postURL *string) (bool, error) {
+func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, platform string, username *string, postURL *string) (bool, error) {
 	if url == "" {
 		sent, _ := telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
 			ChatID: chatID, Text: fmt.Sprintf("Не удалось получить URL %s.", kind.ru()),
@@ -104,12 +104,16 @@ func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID
 		if fileID, ok, err := st.GetCachedFileID(*postURL, string(kind), 0); err == nil && ok {
 			_, sendErr := sendFromFileID(ctx, b, chatID, kind, fileID, config.BotTag)
 			if sendErr == nil {
+				_ = st.RecordCacheEvent(platform, true)
 				return true, nil
 			}
 			if telegramapi.IsBotBlockedError(sendErr) {
 				return false, nil
 			}
+			_ = st.RecordCacheEvent(platform, false)
 			// stale file_id — fall through to re-download
+		} else {
+			_ = st.RecordCacheEvent(platform, false)
 		}
 	}
 
@@ -192,7 +196,7 @@ func contentLength(resp *http.Response) int64 {
 	return size
 }
 
-func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, urls []string, kind Kind, username *string, postURL *string) (bool, error) {
+func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, urls []string, kind Kind, platform string, username *string, postURL *string) (bool, error) {
 	var validURLs []string
 	for _, u := range urls {
 		if u != "" {
@@ -215,9 +219,13 @@ func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID 
 
 	if postURL != nil && allCached(st, *postURL, kind, len(validURLs)) {
 		if sendCachedGroups(ctx, b, st, chatID, groups, groupSize, kind, *postURL) {
+			_ = st.RecordCacheEvent(platform, true)
 			return true, nil
 		}
+		_ = st.RecordCacheEvent(platform, false)
 		// stale file_ids — fall through to re-download
+	} else if postURL != nil {
+		_ = st.RecordCacheEvent(platform, false)
 	}
 
 	for groupIndex, group := range groups {

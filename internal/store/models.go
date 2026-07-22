@@ -52,3 +52,11 @@ type MediaCache struct {
 }
 
 func (MediaCache) TableName() string { return "media_cache" }
+
+type CacheStats struct {
+	Platform string `gorm:"column:platform;primaryKey"`
+	Hits     int64  `gorm:"column:hits;not null;default:0"`
+	Misses   int64  `gorm:"column:misses;not null;default:0"`
+}
+
+func (CacheStats) TableName() string { return "cache_stats" }

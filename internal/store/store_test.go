@@ -218,3 +218,110 @@ func TestConcurrentTogglesAreAtomic(t *testing.T) {
 		t.Fatalf("expected even number of concurrent toggles to return to default (subscribed), got %v", status)
 	}
 }
+
+func TestGetTopErrorMessages(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordError(500, "youtube download", "boom", nil, nil, nil); err != nil {
+		t.Fatalf("RecordError: %v", err)
+	}
+	if err := s.RecordError(500, "youtube download", "boom", nil, nil, nil); err != nil {
+		t.Fatalf("RecordError: %v", err)
+	}
+	if err := s.RecordError(500, "youtube download", "other error", nil, nil, nil); err != nil {
+		t.Fatalf("RecordError: %v", err)
+	}
+
+	clusters, err := s.GetTopErrorMessages(10)
+	if err != nil {
+		t.Fatalf("GetTopErrorMessages: %v", err)
+	}
+	if len(clusters) != 2 {
+		t.Fatalf("expected 2 distinct error messages, got %d: %+v", len(clusters), clusters)
+	}
+	if clusters[0].ErrorMessage != "boom" || clusters[0].Count != 2 {
+		t.Fatalf("expected top cluster to be 'boom' x2, got %+v", clusters[0])
+	}
+}
+
+func TestCacheStats(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordCacheEvent("youtube", true); err != nil {
+		t.Fatalf("RecordCacheEvent: %v", err)
+	}
+	if err := s.RecordCacheEvent("youtube", true); err != nil {
+		t.Fatalf("RecordCacheEvent: %v", err)
+	}
+	if err := s.RecordCacheEvent("youtube", false); err != nil {
+		t.Fatalf("RecordCacheEvent: %v", err)
+	}
+	if err := s.RecordCacheEvent("instagram", false); err != nil {
+		t.Fatalf("RecordCacheEvent: %v", err)
+	}
+
+	stats, err := s.GetCacheStats()
+	if err != nil {
+		t.Fatalf("GetCacheStats: %v", err)
+	}
+	if len(stats) != 2 {
+		t.Fatalf("expected 2 platforms, got %d: %+v", len(stats), stats)
+	}
+	if stats[0].Platform != "instagram" || stats[0].Hits != 0 || stats[0].Misses != 1 {
+		t.Fatalf("unexpected instagram stats: %+v", stats[0])
+	}
+	if stats[1].Platform != "youtube" || stats[1].Hits != 2 || stats[1].Misses != 1 {
+		t.Fatalf("unexpected youtube stats: %+v", stats[1])
+	}
+}
+
+func TestGetRetentionStats(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.UpsertUser(600, nil, nil); err != nil {
+		t.Fatalf("UpsertUser: %v", err)
+	}
+
+	r, err := s.GetRetentionStats()
+	if err != nil {
+		t.Fatalf("GetRetentionStats: %v", err)
+	}
+	if r.NewUsersToday != 1 || r.NewUsersThisWeek != 1 {
+		t.Fatalf("expected freshly created user to count as new today/this week, got %+v", r)
+	}
+	if r.InactiveOver7d != 0 || r.InactiveOver30d != 0 {
+		t.Fatalf("expected freshly active user to not count as inactive, got %+v", r)
+	}
+}
+
+func TestGetActivityByHourAndWeekday(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordDownload(700, "https://example.com/x", "instagram", "video", true, nil, nil); err != nil {
+		t.Fatalf("RecordDownload: %v", err)
+	}
+
+	hours, err := s.GetActivityByHour()
+	if err != nil {
+		t.Fatalf("GetActivityByHour: %v", err)
+	}
+	var hourTotal int64
+	for _, h := range hours {
+		hourTotal += h.Count
+	}
+	if hourTotal != 1 {
+		t.Fatalf("expected 1 total download across hour buckets, got %d: %+v", hourTotal, hours)
+	}
+
+	weekdays, err := s.GetActivityByWeekday()
+	if err != nil {
+		t.Fatalf("GetActivityByWeekday: %v", err)
+	}
+	var weekdayTotal int64
+	for _, w := range weekdays {
+		weekdayTotal += w.Count
+	}
+	if weekdayTotal != 1 {
+		t.Fatalf("expected 1 total download across weekday buckets, got %d: %+v", weekdayTotal, weekdays)
+	}
+}

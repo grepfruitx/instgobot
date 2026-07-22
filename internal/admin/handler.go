@@ -88,6 +88,14 @@ func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message strin
 		h.handlePlatformToggle(ctx, chatID, args, false)
 	case "/pstatus":
 		h.handlePlatformStatus(ctx, chatID)
+	case "/errortop":
+		h.handleErrorTop(ctx, chatID, args)
+	case "/cachestats":
+		h.handleCacheStats(ctx, chatID)
+	case "/retention":
+		h.handleRetention(ctx, chatID)
+	case "/activity":
+		h.handleActivity(ctx, chatID)
 	default:
 		return false
 	}
