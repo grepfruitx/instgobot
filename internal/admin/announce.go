@@ -26,11 +26,11 @@ func (h *Handler) handleAnnounce(ctx context.Context, chatID int64, message stri
 		return
 	}
 
-	formatted := fmt.Sprintf("%s\n\n📢 Отписаться от рассылки: /newsletter\n\n%s", text, config.BotTag)
+	formatted := fmt.Sprintf("%s\n\nОтписаться от рассылки: /newsletter\n\n%s", text, config.BotTag)
 
 	users, err := h.st.GetAllUsers()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении пользователей: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении пользователей: %v", err))
 		return
 	}
 	if len(users) == 0 {
@@ -56,23 +56,23 @@ func (h *Handler) handleAnnounce(ctx context.Context, chatID int64, message stri
 		for i, id := range shown {
 			ids[i] = fmt.Sprintf("%d", id)
 		}
-		failureLine = fmt.Sprintf("❌ Не удалось доставить пользователям: %s%s", strings.Join(ids, ", "), suffix)
+		failureLine = fmt.Sprintf("Не удалось доставить пользователям: %s%s", strings.Join(ids, ", "), suffix)
 	} else {
-		failureLine = "🎉 Все объявления доставлены успешно!"
+		failureLine = "Все объявления доставлены успешно!"
 	}
 
 	h.send(ctx, chatID, strings.Join([]string{
-		"📢 Объявление отправлено!",
+		"Объявление отправлено!",
 		"",
-		"📊 Статистика рассылки:",
-		fmt.Sprintf("✅ Успешно доставлено: %d", successCount),
-		fmt.Sprintf("❌ Не удалось доставить: %d", failureCount),
-		fmt.Sprintf("📤 Отправлено подписанным: %d", len(users)),
+		"Статистика рассылки:",
+		fmt.Sprintf("Успешно доставлено: %d", successCount),
+		fmt.Sprintf("Не удалось доставить: %d", failureCount),
+		fmt.Sprintf("Отправлено подписанным: %d", len(users)),
 		"",
-		"👥 Общая статистика пользователей:",
-		fmt.Sprintf("📈 Всего пользователей: %d", newsletterStats.Total),
-		fmt.Sprintf("🔔 Подписаны на рассылку: %d", newsletterStats.Subscribed),
-		fmt.Sprintf("🔕 Отписаны от рассылки: %d", newsletterStats.Unsubscribed),
+		"Общая статистика пользователей:",
+		fmt.Sprintf("Всего пользователей: %d", newsletterStats.Total),
+		fmt.Sprintf("Подписаны на рассылку: %d", newsletterStats.Subscribed),
+		fmt.Sprintf("Отписаны от рассылки: %d", newsletterStats.Unsubscribed),
 		"",
 		failureLine,
 	}, "\n"))

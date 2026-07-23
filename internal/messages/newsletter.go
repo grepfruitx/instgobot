@@ -20,9 +20,9 @@ func ProcessNewsletterToggle(ctx context.Context, b *bot.Bot, st *store.Store, c
 		return
 	}
 
-	text := "❌ Подписка на рассылку отключена.\n\nВы больше не будете получать:\n• Объявления о новых функциях\n• Уведомления от бота\n\nВключить рассылку: /newsletter"
+	text := "Подписка на рассылку отключена.\n\nВы больше не будете получать:\n• Объявления о новых функциях\n• Уведомления от бота\n\nВключить рассылку: /newsletter"
 	if subscribed {
-		text = "✅ Подписка на рассылку включена!\n\nТеперь вы будете получать:\n• Объявления о новых функциях\n• Важные уведомления от бота\n\nОтключить рассылку: /newsletter"
+		text = "Подписка на рассылку включена!\n\nТеперь вы будете получать:\n• Объявления о новых функциях\n• Важные уведомления от бота\n\nОтключить рассылку: /newsletter"
 	}
 	_, _ = telegramapi.SendText(ctx, b, chatID, text)
 }
@@ -32,7 +32,7 @@ var featureCommandRe = regexp.MustCompile(`^/feat\s*`)
 func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, message string, adminUsername string, username, firstName *string) {
 	featureText := strings.TrimSpace(featureCommandRe.ReplaceAllString(message, ""))
 	if featureText == "" {
-		_, _ = telegramapi.SendText(ctx, b, chatID, "💡 Расскажите нам о своей идее!\n\nИспользуйте команду так:\n/feat добавьте поддержку Pinterest\n\nМы рассмотрим ваше предложение и возможно добавим эту функцию в бот! ✨")
+		_, _ = telegramapi.SendText(ctx, b, chatID, "Расскажите нам о своей идее!\n\nИспользуйте команду так:\n/feat добавьте поддержку Pinterest\n\nМы рассмотрим ваше предложение и возможно добавим эту функцию в бот! ")
 		return
 	}
 
@@ -44,7 +44,7 @@ func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, messag
 	}
 
 	adminMessage := fmt.Sprintf(
-		"💡 Новое предложение функции!\n\n👤 От пользователя: %s\n🆔 Chat ID: %d\n\n📝 Предложение:\n%s\n\n⏰ Время: %s",
+		"Новое предложение функции!\n\nОт пользователя: %s\nChat ID: %d\n\nПредложение:\n%s\n\nВремя: %s",
 		userInfo, chatID, featureText, config.NowMoscowStr(),
 	)
 
@@ -58,8 +58,8 @@ func ProcessFeatureRequest(ctx context.Context, b *bot.Bot, chatID int64, messag
 	}
 
 	if successCount > 0 {
-		_, _ = telegramapi.SendText(ctx, b, chatID, "✅ Спасибо за предложение!\n\nВаша идея отправлена разработчикам.\nМы рассмотрим её и, возможно, добавим в будущих обновлениях! 🚀")
+		_, _ = telegramapi.SendText(ctx, b, chatID, "Спасибо за предложение!\n\nВаша идея отправлена разработчикам.\nМы рассмотрим её и, возможно, добавим в будущих обновлениях! ")
 		return
 	}
-	_, _ = telegramapi.SendText(ctx, b, chatID, fmt.Sprintf("❌ Произошла ошибка при отправке предложения.\nПопробуйте позже или обратитесь к администратору.\n%s", adminUsername))
+	_, _ = telegramapi.SendText(ctx, b, chatID, fmt.Sprintf("Произошла ошибка при отправке предложения.\nПопробуйте позже или обратитесь к администратору.\n%s", adminUsername))
 }

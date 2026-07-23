@@ -100,7 +100,7 @@ func (r *Router) handleTelegramContent(ctx context.Context, b *bot.Bot, text str
 	if !rl.Allowed {
 		_ = r.st.RecordRateLimitHit("tgstories")
 		minutesLeft := int(math.Ceil(time.Until(rl.ResetTime).Minutes()))
-		r.send(ctx, b, chatID, fmt.Sprintf("⚡ Лимит: 1 запрос раз в 3 минуты. Попробуйте снова через %d мин.", minutesLeft))
+		r.send(ctx, b, chatID, fmt.Sprintf("Лимит: 1 запрос раз в 3 минуты. Попробуйте снова через %d мин.", minutesLeft))
 		return
 	}
 
@@ -174,6 +174,6 @@ func (r *Router) rejectIfPlatformDisabled(ctx context.Context, b *bot.Bot, chatI
 	if err != nil || !disabled {
 		return false
 	}
-	r.send(ctx, b, chatID, "😔 Скачивание с этой платформы временно не работает. Мы уже занимаемся этим.")
+	r.send(ctx, b, chatID, "Скачивание с этой платформы временно не работает. Мы уже занимаемся этим.")
 	return true
 }

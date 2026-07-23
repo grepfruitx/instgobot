@@ -75,6 +75,8 @@ type Stats struct {
 	TotalDownloads int64
 	TotalErrors    int64
 	ActiveUsers24h int64
+	Downloads24h   int64
+	Errors24h      int64
 }
 
 func (s *Store) GetStats() (Stats, error) {
@@ -88,7 +90,13 @@ func (s *Store) GetStats() (Stats, error) {
 	if err := s.db.Model(&ErrorLog{}).Count(&stats.TotalErrors).Error; err != nil {
 		return stats, err
 	}
-	err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(last_activity) > datetime('now', '-24 hours')`).Scan(&stats.ActiveUsers24h).Error
+	if err := s.db.Raw(`SELECT COUNT(*) FROM users WHERE datetime(last_activity) > datetime('now', '-24 hours')`).Scan(&stats.ActiveUsers24h).Error; err != nil {
+		return stats, err
+	}
+	if err := s.db.Raw(`SELECT COUNT(*) FROM downloads WHERE success = 1 AND datetime(timestamp) > datetime('now', '-24 hours')`).Scan(&stats.Downloads24h).Error; err != nil {
+		return stats, err
+	}
+	err := s.db.Raw(`SELECT COUNT(*) FROM errors WHERE datetime(timestamp) > datetime('now', '-24 hours')`).Scan(&stats.Errors24h).Error
 	return stats, err
 }
 

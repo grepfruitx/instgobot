@@ -45,41 +45,41 @@ func memoryRSS() (string, bool) {
 
 func (h *Handler) handleHealth(ctx context.Context, chatID int64) {
 	var sb strings.Builder
-	sb.WriteString("🩺 Здоровье бота:\n\n")
+	sb.WriteString("Здоровье бота:\n\n")
 
 	redisCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if err := h.rdb.Ping(redisCtx).Err(); err != nil {
-		fmt.Fprintf(&sb, "🔴 Redis: недоступен (%v)\n", err)
+		fmt.Fprintf(&sb, "Redis: недоступен (%v)\n", err)
 	} else {
-		sb.WriteString("🟢 Redis: ок\n")
+		sb.WriteString("Redis: ок\n")
 	}
 
 	if h.uc.Connected() {
-		sb.WriteString("🟢 Userbot: подключён\n")
+		sb.WriteString("Userbot: подключён\n")
 	} else {
-		sb.WriteString("🔴 Userbot: не подключён (сторисы/приватные посты не работают)\n")
+		sb.WriteString("Userbot: не подключён (сторисы/приватные посты не работают)\n")
 	}
 
 	if disk, ok := diskFree(); ok {
-		fmt.Fprintf(&sb, "💾 Диск: %s\n", disk)
+		fmt.Fprintf(&sb, "Диск: %s\n", disk)
 	} else {
-		sb.WriteString("💾 Диск: не удалось определить\n")
+		sb.WriteString("Диск: не удалось определить\n")
 	}
 
 	if mem, ok := memoryRSS(); ok {
-		fmt.Fprintf(&sb, "🧠 Память процесса: %s\n", mem)
+		fmt.Fprintf(&sb, "Память процесса: %s\n", mem)
 	} else {
-		sb.WriteString("🧠 Память процесса: не удалось определить\n")
+		sb.WriteString("Память процесса: не удалось определить\n")
 	}
 
 	disabled, err := h.st.GetDisabledPlatforms()
 	if err != nil {
-		fmt.Fprintf(&sb, "📱 Платформы: ошибка получения статуса (%v)\n", err)
+		fmt.Fprintf(&sb, "Платформы: ошибка получения статуса (%v)\n", err)
 	} else if len(disabled) == 0 {
-		sb.WriteString("📱 Платформы: все включены\n")
+		sb.WriteString("Платформы: все включены\n")
 	} else {
-		fmt.Fprintf(&sb, "📱 Платформы отключены: %s\n", strings.Join(disabled, ", "))
+		fmt.Fprintf(&sb, "Платформы отключены: %s\n", strings.Join(disabled, ", "))
 	}
 
 	h.send(ctx, chatID, sb.String())

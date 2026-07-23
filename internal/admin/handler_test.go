@@ -85,7 +85,7 @@ func TestHandleCommandUsersEmpty(t *testing.T) {
 
 	adminID := config.AdminUserIDs[0]
 	h.HandleCommand(t.Context(), 1, "/users", adminID)
-	if len(*sent) != 1 || (*sent)[0].Text != "📭 Пользователей пока нет" {
+	if len(*sent) != 1 || (*sent)[0].Text != "Пользователей пока нет" {
 		t.Fatalf("unexpected sent messages: %v", *sent)
 	}
 }
@@ -103,7 +103,7 @@ func TestPlatformToggleAndStatus(t *testing.T) {
 	*sent = nil
 
 	h.HandleCommand(t.Context(), 1, "/pstatus", adminID)
-	if len(*sent) != 1 || !strings.Contains((*sent)[0].Text, "🔴 instagram") {
+	if len(*sent) != 1 || !strings.Contains((*sent)[0].Text, "instagram — выключена") {
 		t.Fatalf("unexpected /pstatus response: %v", *sent)
 	}
 	*sent = nil

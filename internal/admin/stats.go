@@ -11,22 +11,22 @@ import (
 func (h *Handler) handleUsers(ctx context.Context, chatID int64, args []string) {
 	users, err := h.st.GetUsers(parseLimit(args, 20))
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении пользователей: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении пользователей: %v", err))
 		return
 	}
 	if len(users) == 0 {
-		h.send(ctx, chatID, "📭 Пользователей пока нет")
+		h.send(ctx, chatID, "Пользователей пока нет")
 		return
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "👥 Статистика пользователей (показано %d):\n\n", len(users))
+	fmt.Fprintf(&sb, "Статистика пользователей (показано %d):\n\n", len(users))
 	for i, u := range users {
 		fmt.Fprintf(&sb, "%d. %s\n", i+1, displayName(u.Username, u.FirstName))
-		fmt.Fprintf(&sb, "   📊 Скачивания: %d\n", u.DownloadCount)
-		fmt.Fprintf(&sb, "   ❌ Ошибки: %d\n", u.ErrorCount)
-		fmt.Fprintf(&sb, "   🕐 Последняя активность: %s\n", config.FormatMoscow(u.LastActivity))
-		fmt.Fprintf(&sb, "   🆔 ID: %d\n\n", u.ChatID)
+		fmt.Fprintf(&sb, "   Скачивания: %d\n", u.DownloadCount)
+		fmt.Fprintf(&sb, "   Ошибки: %d\n", u.ErrorCount)
+		fmt.Fprintf(&sb, "   Последняя активность: %s\n", config.FormatMoscow(u.LastActivity))
+		fmt.Fprintf(&sb, "   ID: %d\n\n", u.ChatID)
 	}
 	h.sendChunked(ctx, chatID, sb.String())
 }
@@ -34,41 +34,32 @@ func (h *Handler) handleUsers(ctx context.Context, chatID int64, args []string) 
 func (h *Handler) handleStats(ctx context.Context, chatID int64) {
 	stats, err := h.st.GetStats()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении статистики: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении статистики: %v", err))
 		return
 	}
 	h.send(ctx, chatID, fmt.Sprintf(
-		"📊 Общая статистика бота:\n\n👥 Всего пользователей: %d\n📱 Активных за 24ч: %d\n✅ Успешных скачиваний: %d\n❌ Всего ошибок: %d\n\n⏰ Обновлено: %s",
-		stats.TotalUsers, stats.ActiveUsers24h, stats.TotalDownloads, stats.TotalErrors, config.NowMoscowStr(),
+		"Общая статистика бота:\n\nВсего пользователей: %d\nАктивных за 24ч: %d\nУспешных скачиваний: %d\nВсего ошибок: %d\n\nЗа последние 24ч:\nСкачиваний: %d\nОшибок: %d\n\nОбновлено: %s",
+		stats.TotalUsers, stats.ActiveUsers24h, stats.TotalDownloads, stats.TotalErrors, stats.Downloads24h, stats.Errors24h, config.NowMoscowStr(),
 	))
 }
 
 func (h *Handler) handleTopUsers(ctx context.Context, chatID int64, args []string) {
 	users, err := h.st.GetTopUsers(parseLimit(args, 10))
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении топа: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении топа: %v", err))
 		return
 	}
 	if len(users) == 0 {
-		h.send(ctx, chatID, "📭 Активных пользователей пока нет")
+		h.send(ctx, chatID, "Активных пользователей пока нет")
 		return
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🏆 ТОП-%d пользователей по скачиваниям:\n\n", len(users))
+	fmt.Fprintf(&sb, "ТОП-%d пользователей по скачиваниям:\n\n", len(users))
 	for i, u := range users {
-		medal := fmt.Sprintf("%d.", i+1)
-		switch i {
-		case 0:
-			medal = "🥇"
-		case 1:
-			medal = "🥈"
-		case 2:
-			medal = "🥉"
-		}
-		fmt.Fprintf(&sb, "%s %s\n", medal, displayName(u.Username, u.FirstName))
-		fmt.Fprintf(&sb, "   📊 %d скачиваний\n", u.DownloadCount)
-		fmt.Fprintf(&sb, "   🆔 ID: %d\n\n", u.ChatID)
+		fmt.Fprintf(&sb, "%d. %s\n", i+1, displayName(u.Username, u.FirstName))
+		fmt.Fprintf(&sb, "   %d скачиваний\n", u.DownloadCount)
+		fmt.Fprintf(&sb, "   ID: %d\n\n", u.ChatID)
 	}
 	h.sendChunked(ctx, chatID, sb.String())
 }
@@ -76,16 +67,16 @@ func (h *Handler) handleTopUsers(ctx context.Context, chatID int64, args []strin
 func (h *Handler) handleErrors(ctx context.Context, chatID int64, args []string) {
 	errs, err := h.st.GetRecentErrors(parseLimit(args, 5))
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении ошибок: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении ошибок: %v", err))
 		return
 	}
 	if len(errs) == 0 {
-		h.send(ctx, chatID, "✅ Недавних ошибок нет")
+		h.send(ctx, chatID, "Недавних ошибок нет")
 		return
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🚨 Последние %d ошибок:\n\n", len(errs))
+	fmt.Fprintf(&sb, "Последние %d ошибок:\n\n", len(errs))
 	for i, e := range errs {
 		originalMessage := "Не указано"
 		if e.OriginalMessage != nil && *e.OriginalMessage != "" {
@@ -96,10 +87,10 @@ func (h *Handler) handleErrors(ctx context.Context, chatID int64, args []string)
 			errMsg = errMsg[:100] + "..."
 		}
 		fmt.Fprintf(&sb, "%d. %s (ID: %d)\n", i+1, displayName(e.Username, e.FirstName), e.ChatID)
-		fmt.Fprintf(&sb, "   🏷️ Контекст: %s\n", e.ErrorContext)
-		fmt.Fprintf(&sb, "   💬 Сообщение: %s\n", originalMessage)
-		fmt.Fprintf(&sb, "   ⚠️ Ошибка: %s\n", errMsg)
-		fmt.Fprintf(&sb, "   🕐 Время: %s\n\n", config.FormatMoscow(e.Timestamp))
+		fmt.Fprintf(&sb, "   Контекст: %s\n", e.ErrorContext)
+		fmt.Fprintf(&sb, "   Сообщение: %s\n", originalMessage)
+		fmt.Fprintf(&sb, "   Ошибка: %s\n", errMsg)
+		fmt.Fprintf(&sb, "   Время: %s\n\n", config.FormatMoscow(e.Timestamp))
 	}
 	h.sendChunked(ctx, chatID, sb.String())
 }
@@ -115,7 +106,7 @@ func (h *Handler) handleAnnounceCount(ctx context.Context, chatID int64) {
 		percent = int(float64(stats.Subscribed) / float64(stats.Total) * 100)
 	}
 	h.send(ctx, chatID, fmt.Sprintf(
-		"📊 Статистика подписок на рассылку:\n\n👥 Всего пользователей в базе: %d\n🔔 Подписаны на рассылку: %d\n🔕 Отписались от рассылки: %d\n\n📈 Процент подписчиков: %d%%\n\n⏰ Проверено: %s",
+		"Статистика подписок на рассылку:\n\nВсего пользователей в базе: %d\nПодписаны на рассылку: %d\nОтписались от рассылки: %d\n\nПроцент подписчиков: %d%%\n\nПроверено: %s",
 		stats.Total, stats.Subscribed, stats.Unsubscribed, percent, config.NowMoscowStr(),
 	))
 }

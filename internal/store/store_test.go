@@ -71,6 +71,12 @@ func TestRecordDownloadIncrementsCount(t *testing.T) {
 	if stats.TotalDownloads != 1 || stats.TotalUsers != 1 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
+	if stats.Downloads24h != 1 {
+		t.Fatalf("expected 1 download in the last 24h, got %+v", stats)
+	}
+	if stats.Errors24h != 0 {
+		t.Fatalf("expected 0 errors in the last 24h, got %+v", stats)
+	}
 
 	platforms, err := s.GetPlatformStats()
 	if err != nil {
@@ -408,5 +414,21 @@ func TestRateLimitHits(t *testing.T) {
 	}
 	if hits[1].Kind != "youtube" || hits[1].Count != 1 {
 		t.Fatalf("unexpected youtube hits: %+v", hits[1])
+	}
+}
+
+func TestGetStatsErrors24h(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.RecordError(900, "youtube download", "boom", nil, nil, nil); err != nil {
+		t.Fatalf("RecordError: %v", err)
+	}
+
+	stats, err := s.GetStats()
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if stats.Errors24h != 1 {
+		t.Fatalf("expected 1 error in the last 24h, got %+v", stats)
 	}
 }

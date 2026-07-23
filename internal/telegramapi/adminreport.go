@@ -13,22 +13,22 @@ import (
 )
 
 var contextTitles = map[string]string{
-	"youtube download":          "🎥 Ошибка загрузки YouTube",
-	"youtube video send":        "📤 Ошибка отправки YouTube видео",
-	"snapsave download":         "📱 Ошибка скачивания из соцсетей",
-	"media check":               "📁 Не найдены медиафайлы в ответе",
-	"single video":              "🎬 Ошибка обработки одного видео",
-	"single photo":              "📸 Ошибка обработки одного фото",
-	"sendMediaGroup videos":     "🎥📦 Ошибка отправки группы видео",
-	"sendMediaGroup photos":     "📸📦 Ошибка отправки группы фото",
-	"tweet to image":            "🐦 Ошибка конвертации твита в изображение",
-	"delete loading message":    "🗑️ Не удалось удалить сообщение 'Загружаю...'",
-	"main message handler":      "⚙️ Общая ошибка обработки сообщения",
-	"main function":             "🚨 Критическая ошибка бота",
-	"telegram stories download": "📡 Ошибка загрузки Telegram сторис",
-	"telegram post download":    "📡 Ошибка загрузки Telegram поста",
-	"youtube quality picker":    "🎬 Ошибка меню выбора качества YouTube",
-	"threads download":          "🧵 Ошибка скачивания из Threads",
+	"youtube download":          "Ошибка загрузки YouTube",
+	"youtube video send":        "Ошибка отправки YouTube видео",
+	"snapsave download":         "Ошибка скачивания из соцсетей",
+	"media check":               "Не найдены медиафайлы в ответе",
+	"single video":              "Ошибка обработки одного видео",
+	"single photo":              "Ошибка обработки одного фото",
+	"sendMediaGroup videos":     "Ошибка отправки группы видео",
+	"sendMediaGroup photos":     "Ошибка отправки группы фото",
+	"tweet to image":            "Ошибка конвертации твита в изображение",
+	"delete loading message":    "Не удалось удалить сообщение 'Загружаю...'",
+	"main message handler":      "Общая ошибка обработки сообщения",
+	"main function":             "Критическая ошибка бота",
+	"telegram stories download": "Ошибка загрузки Telegram сторис",
+	"telegram post download":    "Ошибка загрузки Telegram поста",
+	"youtube quality picker":    "Ошибка меню выбора качества YouTube",
+	"threads download":          "Ошибка скачивания из Threads",
 }
 
 func shouldSkipReport(err error) bool {
@@ -50,7 +50,7 @@ func SendErrorToAdmin(ctx context.Context, b *bot.Bot, err error, errContext str
 
 	contextTitle, ok := contextTitles[errContext]
 	if !ok {
-		contextTitle = fmt.Sprintf("❌ Ошибка: %s", errContext)
+		contextTitle = fmt.Sprintf("Ошибка: %s", errContext)
 	}
 
 	var userInfo string
@@ -59,12 +59,12 @@ func SendErrorToAdmin(ctx context.Context, b *bot.Bot, err error, errContext str
 		if username != nil && *username != "" {
 			who = "@" + *username
 		}
-		userInfo = fmt.Sprintf("🚨 У пользователя %s произошла ошибка", who)
+		userInfo = fmt.Sprintf("У пользователя %s произошла ошибка", who)
 		if userMessage != "" {
 			userInfo += fmt.Sprintf(" при сообщении %q", userMessage)
 		}
 	} else {
-		userInfo = "🚨 Системная ошибка бота"
+		userInfo = "Системная ошибка бота"
 	}
 
 	lines := []string{
@@ -72,14 +72,14 @@ func SendErrorToAdmin(ctx context.Context, b *bot.Bot, err error, errContext str
 		"",
 		contextTitle,
 		"",
-		"🔍 Детали ошибки:",
+		"Детали ошибки:",
 		err.Error(),
 		"",
 	}
 	if chatID != nil {
-		lines = append(lines, fmt.Sprintf("👤 Chat ID: %d", *chatID), "")
+		lines = append(lines, fmt.Sprintf("Chat ID: %d", *chatID), "")
 	}
-	lines = append(lines, fmt.Sprintf("⏰ Время: %s", config.NowMoscowStr()))
+	lines = append(lines, fmt.Sprintf("Время: %s", config.NowMoscowStr()))
 
 	text := strings.Join(lines, "\n")
 

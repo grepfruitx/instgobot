@@ -53,7 +53,7 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, u
 	} else if !rl.Allowed {
 		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
 		return
 	}
 
@@ -64,28 +64,19 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, u
 
 	var videoButtons [][]models.InlineKeyboardButton
 	for _, q := range staticVideoQualities {
-		prefix := ""
-		if _, ok, _ := h.st.GetCachedFileID(url, videoCacheType(q), 0); ok {
-			prefix = "⚡ "
-		}
 		videoButtons = append(videoButtons, []models.InlineKeyboardButton{{
-			Text:         fmt.Sprintf("%s🎬 %dp", prefix, q),
+			Text:         fmt.Sprintf("%dp", q),
 			CallbackData: fmt.Sprintf("yt:%d:v:%d", chatID, q),
 		}})
 	}
 
-	audioPrefix := ""
-	if _, ok, _ := h.st.GetCachedFileID(url, audioCacheType, 0); ok {
-		audioPrefix = "⚡ "
-	}
-
 	_, err = h.b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    chatID,
-		Text:      "🎬 <b>YouTube видео</b>\n\nВыберите формат:\n<i>Максимум в Telegram — 2 ГБ</i>",
+		Text:      "<b>YouTube видео</b>\n\nВыберите формат:\n<i>Максимум в Telegram — 2 ГБ</i>",
 		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: append(videoButtons, []models.InlineKeyboardButton{{
-				Text: fmt.Sprintf("%s🎵 Аудио", audioPrefix), CallbackData: fmt.Sprintf("yt:%d:a:0", chatID),
+				Text: "Аудио", CallbackData: fmt.Sprintf("yt:%d:a:0", chatID),
 			}}),
 		},
 	})
@@ -115,7 +106,7 @@ func (h *Handler) setPickerLoading(ctx context.Context, chatID int64, messageID 
 		ChatID:    chatID,
 		MessageID: messageID,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
-			InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "⏳ Загрузка...", CallbackData: "yt:noop"}}},
+			InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Загрузка...", CallbackData: "yt:noop"}}},
 		},
 	})
 }
@@ -135,7 +126,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 	isAdmin := config.IsAdmin(userID)
 
 	if !isAdmin && !markDownloadActive(userID) {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Дождитесь окончания текущей загрузки.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Дождитесь окончания текущей загрузки.")
 		return
 	}
 
@@ -149,7 +140,7 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 		markDownloadDone(userID)
 		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("⚡ Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
 		return
 	}
 
@@ -265,7 +256,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 		}
 
 		if notifyFallback && chosen.Height > 0 && chosen.Height < quality {
-			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("ℹ️ %dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height))
+			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("%dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height))
 		}
 
 		cacheType := videoCacheType(quality)
@@ -315,12 +306,12 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 
 func (h *Handler) downloadAdaptive(ctx context.Context, chatID int64, url, cacheType string, chosen *chosenVideo, videoOpts *bot.SendVideoParams, rnd int, sent *bool) error {
 	if !acquireAdaptiveSlot() {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
 		return nil
 	}
 	if !hasEnoughDiskSpace() {
 		releaseAdaptiveSlot()
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "⏳ Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
 		return nil
 	}
 	defer releaseAdaptiveSlot()

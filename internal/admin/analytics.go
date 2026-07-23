@@ -13,25 +13,25 @@ func (h *Handler) handleClearCache(ctx context.Context, chatID int64, args []str
 	}
 	rows, err := h.st.ClearCache(args[0])
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при очистке кэша: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при очистке кэша: %v", err))
 		return
 	}
-	h.send(ctx, chatID, fmt.Sprintf("🗑️ Удалено записей из кэша: %d", rows))
+	h.send(ctx, chatID, fmt.Sprintf("Удалено записей из кэша: %d", rows))
 }
 
 func (h *Handler) handleRateLimitHits(ctx context.Context, chatID int64) {
 	hits, err := h.st.GetRateLimitHits()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении статистики рейт-лимитов: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении статистики рейт-лимитов: %v", err))
 		return
 	}
 	if len(hits) == 0 {
-		h.send(ctx, chatID, "📭 Срабатываний рейт-лимита пока не было")
+		h.send(ctx, chatID, "Срабатываний рейт-лимита пока не было")
 		return
 	}
 
 	var sb strings.Builder
-	sb.WriteString("⛔ Срабатывания рейт-лимита:\n\n")
+	sb.WriteString("Срабатывания рейт-лимита:\n\n")
 	for _, hit := range hits {
 		fmt.Fprintf(&sb, "%s — %d\n", hit.Kind, hit.Count)
 	}
@@ -41,16 +41,16 @@ func (h *Handler) handleRateLimitHits(ctx context.Context, chatID int64) {
 func (h *Handler) handleErrorTop(ctx context.Context, chatID int64, args []string) {
 	clusters, err := h.st.GetTopErrorMessages(parseLimit(args, 10))
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении статистики ошибок: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении статистики ошибок: %v", err))
 		return
 	}
 	if len(clusters) == 0 {
-		h.send(ctx, chatID, "✅ Ошибок пока нет")
+		h.send(ctx, chatID, "Ошибок пока нет")
 		return
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🚨 ТОП-%d повторяющихся ошибок:\n\n", len(clusters))
+	fmt.Fprintf(&sb, "ТОП-%d повторяющихся ошибок:\n\n", len(clusters))
 	for i, c := range clusters {
 		msg := c.ErrorMessage
 		if len(msg) > 150 {
@@ -64,23 +64,23 @@ func (h *Handler) handleErrorTop(ctx context.Context, chatID int64, args []strin
 func (h *Handler) handleCacheStats(ctx context.Context, chatID int64) {
 	stats, err := h.st.GetCacheStats()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении статистики кэша: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении статистики кэша: %v", err))
 		return
 	}
 	if len(stats) == 0 {
-		h.send(ctx, chatID, "📭 Статистика кэша пока пуста")
+		h.send(ctx, chatID, "Статистика кэша пока пуста")
 		return
 	}
 
 	var sb strings.Builder
-	sb.WriteString("⚡ Попадания в кэш по платформам:\n\n")
+	sb.WriteString("Попадания в кэш по платформам:\n\n")
 	for _, s := range stats {
 		total := s.Hits + s.Misses
 		percent := 0.0
 		if total > 0 {
 			percent = float64(s.Hits) / float64(total) * 100
 		}
-		fmt.Fprintf(&sb, "🌐 %s\n   ⚡ Из кэша: %d\n   📥 Свежих закачек: %d\n   📈 Процент: %.1f%%\n\n", strings.ToUpper(s.Platform), s.Hits, s.Misses, percent)
+		fmt.Fprintf(&sb, "%s\n   Из кэша: %d\n   Свежих закачек: %d\n   Процент: %.1f%%\n\n", strings.ToUpper(s.Platform), s.Hits, s.Misses, percent)
 	}
 	h.send(ctx, chatID, sb.String())
 }
@@ -88,11 +88,11 @@ func (h *Handler) handleCacheStats(ctx context.Context, chatID int64) {
 func (h *Handler) handleRetention(ctx context.Context, chatID int64) {
 	r, err := h.st.GetRetentionStats()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении retention-статистики: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении retention-статистики: %v", err))
 		return
 	}
 	h.send(ctx, chatID, fmt.Sprintf(
-		"📈 Retention:\n\n🆕 Новых юзеров сегодня: %d\n🆕 Новых юзеров за неделю: %d\n\n😴 Неактивны >7 дней: %d\n😴 Неактивны >30 дней: %d",
+		"Retention:\n\nНовых юзеров сегодня: %d\nНовых юзеров за неделю: %d\n\nНеактивны >7 дней: %d\nНеактивны >30 дней: %d",
 		r.NewUsersToday, r.NewUsersThisWeek, r.InactiveOver7d, r.InactiveOver30d,
 	))
 }
@@ -102,21 +102,21 @@ var ruWeekdays = []string{"Воскресенье", "Понедельник", "�
 func (h *Handler) handleActivity(ctx context.Context, chatID int64) {
 	hours, err := h.st.GetActivityByHour()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении активности по часам: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении активности по часам: %v", err))
 		return
 	}
 	weekdays, err := h.st.GetActivityByWeekday()
 	if err != nil {
-		h.send(ctx, chatID, fmt.Sprintf("❌ Ошибка при получении активности по дням недели: %v", err))
+		h.send(ctx, chatID, fmt.Sprintf("Ошибка при получении активности по дням недели: %v", err))
 		return
 	}
 
 	var sb strings.Builder
-	sb.WriteString("🕐 Активность по часам (МСК):\n\n")
+	sb.WriteString("Активность по часам (МСК):\n\n")
 	for _, hr := range hours {
 		fmt.Fprintf(&sb, "%02d:00 — %d\n", hr.Hour, hr.Count)
 	}
-	sb.WriteString("\n📅 Активность по дням недели:\n\n")
+	sb.WriteString("\nАктивность по дням недели:\n\n")
 	for _, w := range weekdays {
 		name := "?"
 		if w.Weekday >= 0 && w.Weekday < len(ruWeekdays) {
