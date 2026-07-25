@@ -10,7 +10,14 @@ import (
 	"github.com/go-telegram/bot"
 
 	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/store"
 )
+
+var st *store.Store
+
+func SetStore(s *store.Store) {
+	st = s
+}
 
 var contextTitles = map[string]string{
 	"youtube download":          "Ошибка загрузки YouTube",
@@ -82,6 +89,21 @@ func SendErrorToAdmin(ctx context.Context, b *bot.Bot, err error, errContext str
 	lines = append(lines, fmt.Sprintf("Время: %s", config.NowMoscowStr()))
 
 	text := strings.Join(lines, "\n")
+
+	if st != nil {
+		var cid int64
+		if chatID != nil {
+			cid = *chatID
+		}
+		var msgPtr *string
+		if userMessage != "" {
+			msgPtr = &userMessage
+		}
+		errMsg := err.Error()
+		if recErr := st.RecordError(cid, errContext, errMsg, msgPtr, username, nil); recErr != nil {
+			slog.Warn("failed to record error", "error", recErr)
+		}
+	}
 
 	for _, adminID := range config.AdminUserIDs {
 		if _, sendErr := SafeSendMessage(ctx, b, &bot.SendMessageParams{

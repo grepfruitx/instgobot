@@ -46,6 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer st.Close()
+	telegramapi.SetStore(st)
 
 	rdb, err := cache.New(cfg.RedisAddr)
 	if err != nil {
