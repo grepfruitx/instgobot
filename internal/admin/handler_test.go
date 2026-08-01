@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-telegram/bot"
@@ -29,6 +30,26 @@ type sentMessage struct {
 	Text   string
 }
 
+// syncSentMessages guards sent behind a mutex — broadcast() fans out sends
+// across goroutines within a batch, so concurrent tests need this, not just
+// the ones that happen to send one message at a time.
+type syncSentMessages struct {
+	mu   sync.Mutex
+	msgs []sentMessage
+}
+
+func (s *syncSentMessages) add(m sentMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.msgs = append(s.msgs, m)
+}
+
+func (s *syncSentMessages) all() []sentMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]sentMessage(nil), s.msgs...)
+}
+
 func newTestBotCapturingMessages(t *testing.T) (*bot.Bot, *[]sentMessage) {
 	t.Helper()
 	var sent []sentMessage
@@ -48,6 +69,27 @@ func newTestBotCapturingMessages(t *testing.T) (*bot.Bot, *[]sentMessage) {
 		t.Fatalf("bot.New: %v", err)
 	}
 	return b, &sent
+}
+
+func newTestBotCapturingMessagesConcurrent(t *testing.T) (*bot.Bot, *syncSentMessages) {
+	t.Helper()
+	sent := &syncSentMessages{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			var chatID int64
+			fmt.Sscanf(r.FormValue("chat_id"), "%d", &chatID)
+			sent.add(sentMessage{ChatID: chatID, Text: r.FormValue("text")})
+		}
+		fmt.Fprint(w, `{"ok":true,"result":{"message_id":1,"date":0,"chat":{"id":1,"type":"private"},"text":"ok"}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	b, err := bot.New("test-token", bot.WithServerURL(srv.URL), bot.WithSkipGetMe())
+	if err != nil {
+		t.Fatalf("bot.New: %v", err)
+	}
+	return b, sent
 }
 
 func TestHandleCommandRejectsNonAdmin(t *testing.T) {

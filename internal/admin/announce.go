@@ -11,7 +11,6 @@ import (
 	"github.com/go-telegram/bot"
 
 	"github.com/grepfruitx/instgobot/internal/config"
-	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
 
@@ -40,7 +39,11 @@ func (h *Handler) handleAnnounce(ctx context.Context, chatID int64, message stri
 
 	h.send(ctx, chatID, fmt.Sprintf("Начинаю отправку объявления %d пользователям...\n\nТекст объявления:\n%s", len(users), formatted))
 
-	successCount, failureCount, failedUsers := h.broadcast(ctx, users, formatted)
+	chatIDs := make([]int64, len(users))
+	for i, u := range users {
+		chatIDs[i] = u.ChatID
+	}
+	successCount, failureCount, failedUsers := h.broadcast(ctx, chatIDs, formatted)
 
 	newsletterStats, _ := h.st.GetNewsletterStats()
 
@@ -78,19 +81,19 @@ func (h *Handler) handleAnnounce(ctx context.Context, chatID int64, message stri
 	}, "\n"))
 }
 
-func (h *Handler) broadcast(ctx context.Context, users []store.NewsletterUser, text string) (success, failure int, failedUsers []int64) {
-	for i := 0; i < len(users); i += announceBatchSize {
-		end := min(i+announceBatchSize, len(users))
-		batch := users[i:end]
+func (h *Handler) broadcast(ctx context.Context, chatIDs []int64, text string) (success, failure int, failedUsers []int64) {
+	for i := 0; i < len(chatIDs); i += announceBatchSize {
+		end := min(i+announceBatchSize, len(chatIDs))
+		batch := chatIDs[i:end]
 
 		var wg sync.WaitGroup
 		var mu sync.Mutex
-		for _, u := range batch {
+		for _, chatID := range batch {
 			wg.Add(1)
-			go func(u store.NewsletterUser) {
+			go func(chatID int64) {
 				defer wg.Done()
 				msg, err := telegramapi.SafeSendMessage(ctx, h.b, &bot.SendMessageParams{
-					ChatID: u.ChatID, Text: text, DisableNotification: true,
+					ChatID: chatID, Text: text, DisableNotification: true,
 				})
 
 				mu.Lock()
@@ -99,13 +102,13 @@ func (h *Handler) broadcast(ctx context.Context, users []store.NewsletterUser, t
 					success++
 				} else {
 					failure++
-					failedUsers = append(failedUsers, u.ChatID)
+					failedUsers = append(failedUsers, chatID)
 				}
-			}(u)
+			}(chatID)
 		}
 		wg.Wait()
 
-		if end < len(users) {
+		if end < len(chatIDs) {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}

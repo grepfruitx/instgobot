@@ -74,3 +74,11 @@ type RateLimitHit struct {
 }
 
 func (RateLimitHit) TableName() string { return "rate_limit_hits" }
+
+type PlatformWaitlistEntry struct {
+	ChatID   int64  `gorm:"column:chat_id;primaryKey"`
+	Platform string `gorm:"column:platform;primaryKey"`
+	JoinedAt string `gorm:"column:joined_at;not null"`
+}
+
+func (PlatformWaitlistEntry) TableName() string { return "platform_waitlist" }

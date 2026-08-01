@@ -174,6 +174,7 @@ func (r *Router) rejectIfPlatformDisabled(ctx context.Context, b *bot.Bot, chatI
 	if err != nil || !disabled {
 		return false
 	}
-	r.send(ctx, b, chatID, "Скачивание с этой платформы временно не работает. Мы уже занимаемся этим.")
+	_ = r.st.JoinWaitlist(chatID, plat)
+	r.send(ctx, b, chatID, "Скачивание с этой платформы временно не работает. Мы уже занимаемся этим. Как только заработает — напишем.")
 	return true
 }

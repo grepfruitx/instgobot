@@ -66,6 +66,23 @@ func (h *Handler) handlePlatformToggle(ctx context.Context, chatID int64, args [
 		action = "включена"
 	}
 	h.send(ctx, chatID, fmt.Sprintf("Платформа %s %s.\n\n%s", plat, action, statusLine))
+
+	if !disabled {
+		h.notifyWaitlist(ctx, chatID, plat)
+	}
+}
+
+func (h *Handler) notifyWaitlist(ctx context.Context, adminChatID int64, plat string) {
+	waiting, err := h.st.GetWaitlist(plat)
+	if err != nil || len(waiting) == 0 {
+		return
+	}
+
+	text := fmt.Sprintf("%s снова работает! Отправьте ссылку ещё раз.", strings.ToUpper(plat))
+	success, failure, _ := h.broadcast(ctx, waiting, text)
+	_ = h.st.ClearWaitlist(plat)
+
+	h.send(ctx, adminChatID, fmt.Sprintf("Уведомил список ожидания (%s): доставлено %d, не удалось %d", plat, success, failure))
 }
 
 func (h *Handler) handlePlatformStatus(ctx context.Context, chatID int64) {

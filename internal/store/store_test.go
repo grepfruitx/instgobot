@@ -432,3 +432,47 @@ func TestGetStatsErrors24h(t *testing.T) {
 		t.Fatalf("expected 1 error in the last 24h, got %+v", stats)
 	}
 }
+
+func TestPlatformWaitlist(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.JoinWaitlist(1000, "tiktok"); err != nil {
+		t.Fatalf("JoinWaitlist: %v", err)
+	}
+	if err := s.JoinWaitlist(1001, "tiktok"); err != nil {
+		t.Fatalf("JoinWaitlist: %v", err)
+	}
+	if err := s.JoinWaitlist(1000, "tiktok"); err != nil {
+		t.Fatalf("JoinWaitlist (duplicate join): %v", err)
+	}
+	if err := s.JoinWaitlist(2000, "instagram"); err != nil {
+		t.Fatalf("JoinWaitlist: %v", err)
+	}
+
+	waiting, err := s.GetWaitlist("tiktok")
+	if err != nil {
+		t.Fatalf("GetWaitlist: %v", err)
+	}
+	if len(waiting) != 2 {
+		t.Fatalf("expected 2 waiting on tiktok (duplicate join should not double-add), got %v", waiting)
+	}
+
+	if err := s.ClearWaitlist("tiktok"); err != nil {
+		t.Fatalf("ClearWaitlist: %v", err)
+	}
+	waiting, err = s.GetWaitlist("tiktok")
+	if err != nil {
+		t.Fatalf("GetWaitlist: %v", err)
+	}
+	if len(waiting) != 0 {
+		t.Fatalf("expected empty tiktok waitlist after clear, got %v", waiting)
+	}
+
+	stillWaiting, err := s.GetWaitlist("instagram")
+	if err != nil {
+		t.Fatalf("GetWaitlist: %v", err)
+	}
+	if len(stillWaiting) != 1 || stillWaiting[0] != 2000 {
+		t.Fatalf("expected instagram waitlist untouched by tiktok clear, got %v", stillWaiting)
+	}
+}

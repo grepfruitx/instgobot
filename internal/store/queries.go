@@ -383,3 +383,20 @@ func (s *Store) GetRateLimitHits() ([]RateLimitHit, error) {
 	err := s.db.Order("kind").Find(&results).Error
 	return results, err
 }
+
+func (s *Store) JoinWaitlist(chatID int64, platform string) error {
+	return s.db.Exec(`
+		INSERT INTO platform_waitlist (chat_id, platform, joined_at) VALUES (?, ?, ?)
+		ON CONFLICT (chat_id, platform) DO NOTHING
+	`, chatID, platform, nowISO()).Error
+}
+
+func (s *Store) GetWaitlist(platform string) ([]int64, error) {
+	var chatIDs []int64
+	err := s.db.Model(&PlatformWaitlistEntry{}).Where("platform = ?", platform).Pluck("chat_id", &chatIDs).Error
+	return chatIDs, err
+}
+
+func (s *Store) ClearWaitlist(platform string) error {
+	return s.db.Exec(`DELETE FROM platform_waitlist WHERE platform = ?`, platform).Error
+}
