@@ -77,7 +77,7 @@ func TestProcessSingleVideoNoCache(t *testing.T) {
 
 	ctx := t.Context()
 	postURL := "https://example.com/post"
-	ok, err := ProcessSingleVideo(ctx, b, st, 1, media.URL, "test", strp("user"), &postURL)
+	ok, err := ProcessSingleVideo(ctx, b, st, 1, media.URL, Post{Platform: "test", Username: strp("user"), URL: &postURL})
 	if err != nil {
 		t.Fatalf("ProcessSingleVideo: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestProcessSingleVideoUsesCache(t *testing.T) {
 		t.Fatalf("SetCachedFileID: %v", err)
 	}
 
-	ok, err := ProcessSingleVideo(t.Context(), b, st, 1, media.URL, "test", nil, &postURL)
+	ok, err := ProcessSingleVideo(t.Context(), b, st, 1, media.URL, Post{Platform: "test", URL: &postURL})
 	if err != nil || !ok {
 		t.Fatalf("expected success, got ok=%v err=%v", ok, err)
 	}
@@ -123,7 +123,7 @@ func TestProcessSingleMediaEmptyURL(t *testing.T) {
 	defer tg.Close()
 	b := newTestBot(t, tg)
 
-	ok, err := ProcessSingleVideo(t.Context(), b, st, 1, "", "test", nil, nil)
+	ok, err := ProcessSingleVideo(t.Context(), b, st, 1, "", Post{Platform: "test"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestProcessMediaGroupCachesAllIndices(t *testing.T) {
 	defer media.Close()
 
 	postURL := "https://example.com/post"
-	ok, err := ProcessMediaGroup(t.Context(), b, st, 1, []string{media.URL, media.URL}, KindPhoto, "test", nil, &postURL)
+	ok, err := ProcessMediaGroup(t.Context(), b, st, 1, []string{media.URL, media.URL}, KindPhoto, Post{Platform: "test", URL: &postURL})
 	if err != nil || !ok {
 		t.Fatalf("expected success, got ok=%v err=%v", ok, err)
 	}
@@ -167,7 +167,7 @@ func TestProcessMediaGroupUsesFullCache(t *testing.T) {
 	st.SetCachedFileID(postURL, "photo", 0, "cached-0")
 	st.SetCachedFileID(postURL, "photo", 1, "cached-1")
 
-	ok, err := ProcessMediaGroup(t.Context(), b, st, 1, []string{media.URL, media.URL}, KindPhoto, "test", nil, &postURL)
+	ok, err := ProcessMediaGroup(t.Context(), b, st, 1, []string{media.URL, media.URL}, KindPhoto, Post{Platform: "test", URL: &postURL})
 	if err != nil || !ok {
 		t.Fatalf("expected success, got ok=%v err=%v", ok, err)
 	}

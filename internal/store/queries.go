@@ -3,9 +3,10 @@ package store
 import (
 	"errors"
 	"log/slog"
-	"strings"
 
 	"gorm.io/gorm"
+
+	"github.com/grepfruitx/instgobot/internal/platform"
 )
 
 func (s *Store) UpsertUser(chatID int64, username, firstName *string) (uint, error) {
@@ -343,9 +344,15 @@ func (s *Store) SetCachedFileID(postURL, mediaType string, index int, fileID str
 }
 
 func (s *Store) ClearCache(postURL string) (int64, error) {
-	normalized := strings.TrimSuffix(strings.Split(postURL, "?")[0], "/")
+	normalized := platform.NormalizePostURL(postURL)
 	res := s.db.Exec(`DELETE FROM media_cache WHERE post_url = ? OR post_url = ?`, postURL, normalized)
-	return res.RowsAffected, res.Error
+	if res.Error != nil {
+		return res.RowsAffected, res.Error
+	}
+	rows := res.RowsAffected
+
+	res = s.db.Exec(`DELETE FROM post_cache WHERE post_url = ? OR post_url = ?`, postURL, normalized)
+	return rows + res.RowsAffected, res.Error
 }
 
 func (s *Store) BanUser(chatID int64) error {
@@ -382,6 +389,30 @@ func (s *Store) GetRateLimitHits() ([]RateLimitHit, error) {
 	var results []RateLimitHit
 	err := s.db.Order("kind").Find(&results).Error
 	return results, err
+}
+
+func (s *Store) GetPostCache(postURL string) (PostCache, bool, error) {
+	var pc PostCache
+	err := s.db.Where("post_url = ?", postURL).First(&pc).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return PostCache{}, false, nil
+	}
+	if err != nil {
+		return PostCache{}, false, err
+	}
+	return pc, true, nil
+}
+
+func (s *Store) SetPostCache(postURL string, photoCount, videoCount int, postText string) error {
+	return s.db.Exec(`
+		INSERT INTO post_cache (post_url, photo_count, video_count, post_text, cached_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (post_url) DO UPDATE SET
+			photo_count = excluded.photo_count,
+			video_count = excluded.video_count,
+			post_text = excluded.post_text,
+			cached_at = excluded.cached_at
+	`, postURL, photoCount, videoCount, postText, nowISO()).Error
 }
 
 func (s *Store) JoinWaitlist(chatID int64, platform string) error {

@@ -239,9 +239,42 @@ func fetchThumbnail(ctx context.Context, url string) []byte {
 	return data
 }
 
+func (h *Handler) trySendCachedVideo(ctx context.Context, chatID int64, url, cacheType string) (served, stop bool) {
+	cached, ok, _ := h.st.GetCachedFileID(url, cacheType, 0)
+	if !ok {
+		_ = h.st.RecordCacheEvent("youtube", false)
+		return false, false
+	}
+
+	caption := config.BotTag
+	if pc, found, _ := h.st.GetPostCache(url); found && pc.PostText != "" {
+		caption = fmt.Sprintf("%s\n\n%s", pc.PostText, config.BotTag)
+	}
+
+	_, err := h.b.SendVideo(ctx, &bot.SendVideoParams{
+		ChatID: chatID, Video: &models.InputFileString{Data: cached},
+		Caption: caption, DisableNotification: true, SupportsStreaming: true,
+	})
+	if err == nil {
+		_ = h.st.RecordCacheEvent("youtube", true)
+		return true, false
+	}
+	if telegramapi.IsBotBlockedError(err) {
+		return false, true
+	}
+	_ = h.st.RecordCacheEvent("youtube", false)
+	return false, false
+}
+
 func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url string, quality int, username *string, notifyFallback bool) bool {
 	activeJobs.Add(1)
 	defer activeJobs.Done()
+
+	cacheType := videoCacheType(quality)
+
+	if served, stop := h.trySendCachedVideo(ctx, chatID, url, cacheType); served || stop {
+		return served
+	}
 
 	sent := false
 
@@ -259,7 +292,6 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("%dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height))
 		}
 
-		cacheType := videoCacheType(quality)
 		caption := fmt.Sprintf("%s\n\n%s", meta.Title, config.BotTag)
 		videoOpts := &bot.SendVideoParams{
 			ChatID: chatID, Caption: caption, DisableNotification: true, SupportsStreaming: true,
@@ -269,22 +301,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 			videoOpts.Thumbnail = &models.InputFileUpload{Filename: "thumb.jpg", Data: bytes.NewReader(thumb)}
 		}
 
-		if cached, ok, _ := h.st.GetCachedFileID(url, cacheType, 0); ok {
-			videoOpts.Video = &models.InputFileString{Data: cached}
-			_, sendErr := h.b.SendVideo(ctx, videoOpts)
-			if sendErr == nil {
-				sent = true
-				_ = h.st.RecordCacheEvent("youtube", true)
-				return nil
-			}
-			if telegramapi.IsBotBlockedError(sendErr) {
-				return sendErr
-			}
-			_ = h.st.RecordCacheEvent("youtube", false)
-			// stale file_id — fall through to re-download
-		} else {
-			_ = h.st.RecordCacheEvent("youtube", false)
-		}
+		_ = h.st.SetPostCache(url, 0, 1, meta.Title)
 
 		rnd := rand.Intn(100000) + 1
 

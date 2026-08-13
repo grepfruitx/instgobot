@@ -39,6 +39,27 @@ func (k Kind) ru() string {
 	return "фото"
 }
 
+type Post struct {
+	Platform string
+	Username *string
+	URL      *string
+	Caption  string
+}
+
+func (p Post) captionText() string {
+	if p.Caption == "" {
+		return config.BotTag
+	}
+	return p.Caption
+}
+
+func firstItemCaption(p Post, groupIndex, localIndex int) string {
+	if groupIndex != 0 || localIndex != 0 {
+		return ""
+	}
+	return p.captionText()
+}
+
 func sendFromFileID(ctx context.Context, b *bot.Bot, chatID int64, kind Kind, fileID string, caption string) (*models.Message, error) {
 	if kind == KindVideo {
 		return telegramapi.SafeSendVideo(ctx, b, &bot.SendVideoParams{
@@ -81,44 +102,44 @@ func messageFileID(kind Kind, msg *models.Message) string {
 	return ""
 }
 
-func ProcessSingleVideo(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, platform string, username *string, postURL *string) (bool, error) {
-	return ProcessSingleMedia(ctx, b, st, chatID, url, KindVideo, platform, username, postURL)
+func ProcessSingleVideo(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, p Post) (bool, error) {
+	return ProcessSingleMedia(ctx, b, st, chatID, url, KindVideo, p)
 }
 
-func ProcessSinglePhoto(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, platform string, username *string, postURL *string) (bool, error) {
-	return ProcessSingleMedia(ctx, b, st, chatID, url, KindPhoto, platform, username, postURL)
+func ProcessSinglePhoto(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, p Post) (bool, error) {
+	return ProcessSingleMedia(ctx, b, st, chatID, url, KindPhoto, p)
 }
 
-func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, platform string, username *string, postURL *string) (bool, error) {
+func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, p Post) (bool, error) {
 	if url == "" {
 		sent, _ := telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
 			ChatID: chatID, Text: fmt.Sprintf("Не удалось получить URL %s.", kind.ru()),
 		})
 		if sent != nil {
-			telegramapi.SendErrorToAdmin(ctx, b, fmt.Errorf("no %s url", kind), fmt.Sprintf("single %s", kind), "", &chatID, username)
+			telegramapi.SendErrorToAdmin(ctx, b, fmt.Errorf("no %s url", kind), fmt.Sprintf("single %s", kind), "", &chatID, p.Username)
 		}
 		return false, nil
 	}
 
-	if postURL != nil {
-		if fileID, ok, err := st.GetCachedFileID(*postURL, string(kind), 0); err == nil && ok {
-			_, sendErr := sendFromFileID(ctx, b, chatID, kind, fileID, config.BotTag)
+	if p.URL != nil {
+		if fileID, ok, err := st.GetCachedFileID(*p.URL, string(kind), 0); err == nil && ok {
+			_, sendErr := sendFromFileID(ctx, b, chatID, kind, fileID, p.captionText())
 			if sendErr == nil {
-				_ = st.RecordCacheEvent(platform, true)
+				_ = st.RecordCacheEvent(p.Platform, true)
 				return true, nil
 			}
 			if telegramapi.IsBotBlockedError(sendErr) {
 				return false, nil
 			}
-			_ = st.RecordCacheEvent(platform, false)
+			_ = st.RecordCacheEvent(p.Platform, false)
 			// stale file_id — fall through to re-download
 		} else {
-			_ = st.RecordCacheEvent(platform, false)
+			_ = st.RecordCacheEvent(p.Platform, false)
 		}
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {
-		result, retry := attemptSingleDownloadAndSend(ctx, b, st, chatID, url, kind, username, postURL, attempt)
+		result, retry := attemptSingleDownloadAndSend(ctx, b, st, chatID, url, kind, p, attempt)
 		if !retry {
 			return result, nil
 		}
@@ -127,22 +148,21 @@ func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID
 	return false, nil
 }
 
-// retry=true means sleep and try again; result is only meaningful when retry=false.
-func attemptSingleDownloadAndSend(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, username *string, postURL *string, attempt int) (result bool, retry bool) {
+func attemptSingleDownloadAndSend(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, p Post, attempt int) (result bool, retry bool) {
 	resp, err := FetchMediaResponse(ctx, url, false)
 	if err != nil {
-		return classifyMediaError(ctx, b, chatID, kind, username, err, attempt)
+		return classifyMediaError(ctx, b, chatID, kind, p.Username, err, attempt)
 	}
 	defer resp.Body.Close()
 
 	sendErr := telegramapi.WithChatActionErr(ctx, b, chatID, kind.chatAction(), func() error {
-		msg, err := uploadMedia(ctx, b, chatID, kind, resp.Body, config.BotTag)
+		msg, err := uploadMedia(ctx, b, chatID, kind, resp.Body, p.captionText())
 		if err != nil {
 			return err
 		}
-		if postURL != nil {
+		if p.URL != nil {
 			if fileID := messageFileID(kind, msg); fileID != "" {
-				st.SetCachedFileID(*postURL, string(kind), 0, fileID)
+				st.SetCachedFileID(*p.URL, string(kind), 0, fileID)
 			}
 		}
 		return nil
@@ -151,7 +171,7 @@ func attemptSingleDownloadAndSend(ctx context.Context, b *bot.Bot, st *store.Sto
 	if sendErr == nil {
 		return true, false
 	}
-	return classifyMediaError(ctx, b, chatID, kind, username, sendErr, attempt)
+	return classifyMediaError(ctx, b, chatID, kind, p.Username, sendErr, attempt)
 }
 
 func classifyMediaError(ctx context.Context, b *bot.Bot, chatID int64, kind Kind, username *string, err error, attempt int) (result bool, retry bool) {
@@ -196,7 +216,7 @@ func contentLength(resp *http.Response) int64 {
 	return size
 }
 
-func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, urls []string, kind Kind, platform string, username *string, postURL *string) (bool, error) {
+func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, urls []string, kind Kind, p Post) (bool, error) {
 	var validURLs []string
 	for _, u := range urls {
 		if u != "" {
@@ -207,25 +227,22 @@ func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID 
 		return false, nil
 	}
 
-	groupSize := 10
-	if kind == KindVideo {
-		groupSize = 3
-	}
+	groupSize := groupSizeFor(kind)
 	var groups [][]string
 	for i := 0; i < len(validURLs); i += groupSize {
 		end := min(i+groupSize, len(validURLs))
 		groups = append(groups, validURLs[i:end])
 	}
 
-	if postURL != nil && allCached(st, *postURL, kind, len(validURLs)) {
-		if sendCachedGroups(ctx, b, st, chatID, groups, groupSize, kind, *postURL) {
-			_ = st.RecordCacheEvent(platform, true)
+	if p.URL != nil && allCached(st, *p.URL, kind, len(validURLs)) {
+		if sendCachedGroups(ctx, b, st, chatID, groups, groupSize, kind, *p.URL, p) {
+			_ = st.RecordCacheEvent(p.Platform, true)
 			return true, nil
 		}
-		_ = st.RecordCacheEvent(platform, false)
+		_ = st.RecordCacheEvent(p.Platform, false)
 		// stale file_ids — fall through to re-download
-	} else if postURL != nil {
-		_ = st.RecordCacheEvent(platform, false)
+	} else if p.URL != nil {
+		_ = st.RecordCacheEvent(p.Platform, false)
 	}
 
 	for groupIndex, group := range groups {
@@ -241,12 +258,12 @@ func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID 
 
 		var err error
 		if totalSize > maxGroupSize {
-			err = sendGroupIndividually(ctx, b, st, chatID, results, groupIndex, groupSize, kind, postURL)
+			err = sendGroupIndividually(ctx, b, st, chatID, results, groupIndex, groupSize, kind, p)
 		} else {
-			err = sendGroupAsMediaGroup(ctx, b, st, chatID, results, groupIndex, groupSize, kind, postURL)
+			err = sendGroupAsMediaGroup(ctx, b, st, chatID, results, groupIndex, groupSize, kind, p)
 		}
 		if err != nil {
-			result, _ := classifyMediaError(ctx, b, chatID, kind, username, err, 1)
+			result, _ := classifyMediaError(ctx, b, chatID, kind, p.Username, err, 1)
 			return result, nil
 		}
 
@@ -267,7 +284,7 @@ func allCached(st *store.Store, postURL string, kind Kind, count int) bool {
 	return true
 }
 
-func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, groups [][]string, groupSize int, kind Kind, postURL string) bool {
+func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, groups [][]string, groupSize int, kind Kind, postURL string, p Post) bool {
 	for groupIndex, group := range groups {
 		type cachedItem struct {
 			fileID  string
@@ -277,11 +294,7 @@ func sendCachedGroups(ctx context.Context, b *bot.Bot, st *store.Store, chatID i
 		for localIndex := range group {
 			globalIndex := groupIndex*groupSize + localIndex
 			fileID, _, _ := st.GetCachedFileID(postURL, string(kind), globalIndex)
-			caption := ""
-			if groupIndex == 0 && localIndex == 0 {
-				caption = config.BotTag
-			}
-			items[localIndex] = cachedItem{fileID, caption}
+			items[localIndex] = cachedItem{fileID, firstItemCaption(p, groupIndex, localIndex)}
 		}
 
 		var sendErr error
@@ -344,22 +357,19 @@ func fetchGroupConcurrently(ctx context.Context, group []string) []groupFetchRes
 	return valid
 }
 
-func sendGroupIndividually(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, results []groupFetchResult, groupIndex, groupSize int, kind Kind, postURL *string) error {
+func sendGroupIndividually(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, results []groupFetchResult, groupIndex, groupSize int, kind Kind, p Post) error {
 	for i, r := range results {
 		globalIndex := groupIndex*groupSize + r.localIndex
-		caption := ""
-		if groupIndex == 0 && r.localIndex == 0 {
-			caption = config.BotTag
-		}
+		caption := firstItemCaption(p, groupIndex, r.localIndex)
 
 		err := telegramapi.WithChatActionErr(ctx, b, chatID, kind.chatAction(), func() error {
 			msg, sendErr := uploadMedia(ctx, b, chatID, kind, r.resp.Body, caption)
 			if sendErr != nil {
 				return sendErr
 			}
-			if postURL != nil {
+			if p.URL != nil {
 				if fileID := messageFileID(kind, msg); fileID != "" {
-					st.SetCachedFileID(*postURL, string(kind), globalIndex, fileID)
+					st.SetCachedFileID(*p.URL, string(kind), globalIndex, fileID)
 				}
 			}
 			return nil
@@ -375,14 +385,10 @@ func sendGroupIndividually(ctx context.Context, b *bot.Bot, st *store.Store, cha
 	return nil
 }
 
-func sendGroupAsMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, results []groupFetchResult, groupIndex, groupSize int, kind Kind, postURL *string) error {
+func sendGroupAsMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, results []groupFetchResult, groupIndex, groupSize int, kind Kind, p Post) error {
 	media := make([]models.InputMedia, len(results))
 	for i, r := range results {
-		caption := ""
-		if groupIndex == 0 && r.localIndex == 0 {
-			caption = config.BotTag
-		}
-		media[i] = newUploadInputMedia(kind, fmt.Sprintf("attach://media%d", i), r.resp.Body, caption)
+		media[i] = newUploadInputMedia(kind, fmt.Sprintf("attach://media%d", i), r.resp.Body, firstItemCaption(p, groupIndex, r.localIndex))
 	}
 
 	msgs, err := telegramapi.WithChatAction(ctx, b, chatID, kind.chatAction(), func() ([]*models.Message, error) {
@@ -395,16 +401,58 @@ func sendGroupAsMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, cha
 		return err
 	}
 
-	if postURL != nil {
+	if p.URL != nil {
 		for i, msg := range msgs {
 			if i >= len(results) {
 				break
 			}
 			globalIndex := groupIndex*groupSize + results[i].localIndex
 			if fileID := messageFileID(kind, msg); fileID != "" {
-				st.SetCachedFileID(*postURL, string(kind), globalIndex, fileID)
+				st.SetCachedFileID(*p.URL, string(kind), globalIndex, fileID)
 			}
 		}
 	}
 	return nil
+}
+
+func groupsForCount(count, groupSize int) [][]string {
+	var groups [][]string
+	for i := 0; i < count; i += groupSize {
+		end := min(i+groupSize, count)
+		groups = append(groups, make([]string, end-i))
+	}
+	return groups
+}
+
+func groupSizeFor(kind Kind) int {
+	if kind == KindVideo {
+		return 3
+	}
+	return 10
+}
+
+func SendCachedPost(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, postURL string, photoCount, videoCount int, p Post) bool {
+	if photoCount == 0 && videoCount == 0 {
+		return false
+	}
+	if !allCached(st, postURL, KindPhoto, photoCount) || !allCached(st, postURL, KindVideo, videoCount) {
+		return false
+	}
+
+	photoPost, videoPost := p, p
+	if photoCount > 0 {
+		videoPost.Caption = ""
+	}
+
+	if photoCount > 0 {
+		if !sendCachedGroups(ctx, b, st, chatID, groupsForCount(photoCount, groupSizeFor(KindPhoto)), groupSizeFor(KindPhoto), KindPhoto, postURL, photoPost) {
+			return false
+		}
+	}
+	if videoCount > 0 {
+		if !sendCachedGroups(ctx, b, st, chatID, groupsForCount(videoCount, groupSizeFor(KindVideo)), groupSizeFor(KindVideo), KindVideo, postURL, videoPost) {
+			return false
+		}
+	}
+	return true
 }

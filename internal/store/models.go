@@ -75,6 +75,20 @@ type RateLimitHit struct {
 
 func (RateLimitHit) TableName() string { return "rate_limit_hits" }
 
+type PostCache struct {
+	PostURL    string `gorm:"column:post_url;primaryKey"`
+	PhotoCount int    `gorm:"column:photo_count;not null;default:0"`
+	VideoCount int    `gorm:"column:video_count;not null;default:0"`
+	PostText   string `gorm:"column:post_text;not null;default:''"`
+	CachedAt   string `gorm:"column:cached_at;not null"`
+}
+
+func (PostCache) TableName() string { return "post_cache" }
+
+func (p PostCache) HasMedia() bool {
+	return p.PhotoCount > 0 || p.VideoCount > 0
+}
+
 type PlatformWaitlistEntry struct {
 	ChatID   int64  `gorm:"column:chat_id;primaryKey"`
 	Platform string `gorm:"column:platform;primaryKey"`

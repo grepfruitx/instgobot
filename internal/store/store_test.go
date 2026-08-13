@@ -476,3 +476,55 @@ func TestPlatformWaitlist(t *testing.T) {
 		t.Fatalf("expected instagram waitlist untouched by tiktok clear, got %v", stillWaiting)
 	}
 }
+
+func TestPostCacheManifest(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, ok, err := s.GetPostCache("https://example.com/p/abc"); err != nil || ok {
+		t.Fatalf("expected a miss on an unknown post, got ok=%v err=%v", ok, err)
+	}
+
+	if err := s.SetPostCache("https://example.com/p/abc", 2, 1, "hello"); err != nil {
+		t.Fatalf("SetPostCache: %v", err)
+	}
+
+	pc, ok, err := s.GetPostCache("https://example.com/p/abc")
+	if err != nil || !ok {
+		t.Fatalf("expected a hit, got ok=%v err=%v", ok, err)
+	}
+	if pc.PhotoCount != 2 || pc.VideoCount != 1 || pc.PostText != "hello" || !pc.HasMedia() {
+		t.Fatalf("unexpected manifest: %+v", pc)
+	}
+
+	// re-caching the same post must overwrite, not duplicate or fail
+	if err := s.SetPostCache("https://example.com/p/abc", 0, 0, "only text"); err != nil {
+		t.Fatalf("SetPostCache (upsert): %v", err)
+	}
+	pc, _, _ = s.GetPostCache("https://example.com/p/abc")
+	if pc.PhotoCount != 0 || pc.VideoCount != 0 || pc.PostText != "only text" || pc.HasMedia() {
+		t.Fatalf("expected the manifest to be overwritten, got %+v", pc)
+	}
+}
+
+func TestClearCacheAlsoDropsManifest(t *testing.T) {
+	s := newTestStore(t)
+
+	if err := s.SetCachedFileID("https://www.instagram.com/p/ABC", "photo", 0, "file1"); err != nil {
+		t.Fatalf("SetCachedFileID: %v", err)
+	}
+	if err := s.SetPostCache("https://www.instagram.com/p/ABC", 1, 0, ""); err != nil {
+		t.Fatalf("SetPostCache: %v", err)
+	}
+
+	// admin pastes the link with the query string still attached
+	rows, err := s.ClearCache("https://www.instagram.com/p/ABC/?img_index=2")
+	if err != nil {
+		t.Fatalf("ClearCache: %v", err)
+	}
+	if rows != 2 {
+		t.Fatalf("expected both the file_id and the manifest cleared, got %d rows", rows)
+	}
+	if _, ok, _ := s.GetPostCache("https://www.instagram.com/p/ABC"); ok {
+		t.Fatal("manifest survived ClearCache")
+	}
+}

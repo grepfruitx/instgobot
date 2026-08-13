@@ -42,6 +42,30 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 		}
 	}
 
+	isEphemeralStoriesPage := instagramStoriesPageRe.MatchString(platform.NormalizePostURL(downloadTarget))
+	var postURL *string
+	if !isEphemeralStoriesPage {
+		u := platform.NormalizePostURL(message)
+		postURL = &u
+	}
+
+	if postURL != nil {
+		if cached, ok, _ := st.GetPostCache(*postURL); ok && cached.HasMedia() {
+			cachedPost := media.Post{Platform: plat, Username: username, URL: postURL}
+			if media.SendCachedPost(ctx, b, st, chatID, *postURL, cached.PhotoCount, cached.VideoCount, cachedPost) {
+				_ = st.RecordCacheEvent(plat, true)
+				mediaType := "video"
+				if cached.PhotoCount > 0 {
+					mediaType = "photo"
+				}
+				st.RecordDownloadLogged(chatID, message, plat, mediaType, true, username, firstName)
+				return
+			}
+			_ = st.RecordCacheEvent(plat, false)
+			// stale file_ids — fall through to a real scrape
+		}
+	}
+
 	formatted := handleUnderlineEnding(downloadTarget)
 	resp := smd.Download(formatted, &smd.Options{Retry: 3, RetryDelay: 500 * time.Millisecond, UserAgent: chromeUA})
 
@@ -91,28 +115,23 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 		return
 	}
 
-	isEphemeralStoriesPage := instagramStoriesPageRe.MatchString(strings.Split(downloadTarget, "?")[0])
-	var postURL *string
-	if !isEphemeralStoriesPage {
-		u := strings.TrimSuffix(strings.Split(message, "?")[0], "/")
-		postURL = &u
-	}
+	post := media.Post{Platform: plat, Username: username, URL: postURL}
 
 	var photoOK, videoOK bool
 	switch len(photos) {
 	case 1:
-		photoOK, _ = media.ProcessSinglePhoto(ctx, b, st, chatID, photos[0], plat, username, postURL)
+		photoOK, _ = media.ProcessSinglePhoto(ctx, b, st, chatID, photos[0], post)
 	default:
 		if len(photos) > 1 {
-			photoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, photos, media.KindPhoto, plat, username, postURL)
+			photoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, photos, media.KindPhoto, post)
 		}
 	}
 	switch len(videos) {
 	case 1:
-		videoOK, _ = media.ProcessSingleVideo(ctx, b, st, chatID, videos[0], plat, username, postURL)
+		videoOK, _ = media.ProcessSingleVideo(ctx, b, st, chatID, videos[0], post)
 	default:
 		if len(videos) > 1 {
-			videoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, videos, media.KindVideo, plat, username, postURL)
+			videoOK, _ = media.ProcessMediaGroup(ctx, b, st, chatID, videos, media.KindVideo, post)
 		}
 	}
 
@@ -120,13 +139,17 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	if len(photos) > 0 {
 		mediaType = "photo"
 	}
-	st.RecordDownloadLogged(chatID, message, plat, mediaType, photoOK || videoOK, username, firstName)
+	ok := photoOK || videoOK
+	if ok && postURL != nil && photoOK == (len(photos) > 0) && videoOK == (len(videos) > 0) {
+		_ = st.SetPostCache(*postURL, len(photos), len(videos), "")
+	}
+	st.RecordDownloadLogged(chatID, message, plat, mediaType, ok, username, firstName)
 }
 
 const tweetImageCacheType = "tweet_image"
 
 func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, message, plat string, username, firstName *string) {
-	postURL := strings.TrimSuffix(strings.Split(message, "?")[0], "/")
+	postURL := platform.NormalizePostURL(message)
 
 	if cached, ok, _ := st.GetCachedFileID(postURL, tweetImageCacheType, 0); ok {
 		if _, err := telegramapi.SafeSendPhoto(ctx, b, &bot.SendPhotoParams{

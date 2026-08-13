@@ -106,3 +106,28 @@ func TestIsTelegramLink(t *testing.T) {
 		t.Fatal("expected false")
 	}
 }
+
+func TestNormalizePostURL(t *testing.T) {
+	cases := []struct{ in, want string }{
+		// the case that motivated this: same post, different carousel index
+		{"https://www.instagram.com/p/DbLVGJAk7WC/?img_index=2&igsi=MXBn", "https://www.instagram.com/p/DbLVGJAk7WC"},
+		{"https://www.instagram.com/p/DbLVGJAk7WC/?img_index=3&igsi=MXBn", "https://www.instagram.com/p/DbLVGJAk7WC"},
+		{"https://www.instagram.com/p/DbLVGJAk7WC/", "https://www.instagram.com/p/DbLVGJAk7WC"},
+		{"https://www.instagram.com/p/DbLVGJAk7WC", "https://www.instagram.com/p/DbLVGJAk7WC"},
+		{"https://www.threads.com/@a/post/XYZ/", "https://www.threads.com/@a/post/XYZ"},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := NormalizePostURL(tc.in); got != tc.want {
+			t.Fatalf("NormalizePostURL(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestNormalizePostURLCollapsesCarouselIndexVariants(t *testing.T) {
+	a := NormalizePostURL("https://www.instagram.com/p/ABC/?img_index=2&igsi=x")
+	b := NormalizePostURL("https://www.instagram.com/p/ABC/?img_index=7&igsi=y")
+	if a != b {
+		t.Fatalf("carousel index variants must share one cache key, got %q vs %q", a, b)
+	}
+}

@@ -94,6 +94,10 @@ func ToInstagramStoriesLink(username string) string {
 	return fmt.Sprintf("https://www.instagram.com/stories/%s/", username)
 }
 
+func NormalizePostURL(url string) string {
+	return strings.TrimSuffix(strings.Split(url, "?")[0], "/")
+}
+
 var SupportedPlatforms = []string{"tiktok", "instagram", "facebook", "twitter", "youtube", "threads", "telegram"}
 
 func DetectPlatform(url string) string {

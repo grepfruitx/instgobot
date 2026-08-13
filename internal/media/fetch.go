@@ -1,7 +1,9 @@
 package media
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -33,6 +35,34 @@ func (b *cancelOnCloseBody) Close() error {
 	err := b.ReadCloser.Close()
 	b.cancel()
 	return err
+}
+
+func PostJSON(ctx context.Context, url string, payload any, timeout time.Duration) (*http.Response, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		cancel()
+		if reqCtx.Err() == context.DeadlineExceeded {
+			return nil, &telegramapi.MediaFetchError{Reason: "Превышено время ожидания ответа сервера."}
+		}
+		return nil, err
+	}
+
+	resp.Body = &cancelOnCloseBody{ReadCloser: resp.Body, cancel: cancel}
+	return resp, nil
 }
 
 func FetchWithTimeout(ctx context.Context, url string, timeout time.Duration) (*http.Response, error) {
