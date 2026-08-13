@@ -36,7 +36,6 @@ func bestPhotoSize(sizes []tg.PhotoSizeClass) (typ string, size int64) {
 }
 
 func extractDownloadable(m tg.MessageMediaClass) (loc tg.InputFileLocationClass, kind mediaKind, size int64, ok bool) {
-	// binary split only: photo vs everything-else-is-video, no mime sniffing
 	switch mm := m.(type) {
 	case *tg.MessageMediaPhoto:
 		photoClass, has := mm.GetPhoto()

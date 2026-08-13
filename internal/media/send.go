@@ -132,7 +132,6 @@ func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID
 				return false, nil
 			}
 			_ = st.RecordCacheEvent(p.Platform, false)
-			// stale file_id — fall through to re-download
 		} else {
 			_ = st.RecordCacheEvent(p.Platform, false)
 		}
@@ -240,7 +239,6 @@ func ProcessMediaGroup(ctx context.Context, b *bot.Bot, st *store.Store, chatID 
 			return true, nil
 		}
 		_ = st.RecordCacheEvent(p.Platform, false)
-		// stale file_ids — fall through to re-download
 	} else if p.URL != nil {
 		_ = st.RecordCacheEvent(p.Platform, false)
 	}

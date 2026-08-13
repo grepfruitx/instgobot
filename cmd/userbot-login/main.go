@@ -1,5 +1,3 @@
-// Command userbot-login runs the one-time interactive MTProto login and
-// persists the session to USERBOT_SESSION_PATH. Not part of cmd/bot.
 package main
 
 import (

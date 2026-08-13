@@ -109,7 +109,6 @@ func TestIsTelegramLink(t *testing.T) {
 
 func TestNormalizePostURL(t *testing.T) {
 	cases := []struct{ in, want string }{
-		// the case that motivated this: same post, different carousel index
 		{"https://www.instagram.com/p/DbLVGJAk7WC/?img_index=2&igsi=MXBn", "https://www.instagram.com/p/DbLVGJAk7WC"},
 		{"https://www.instagram.com/p/DbLVGJAk7WC/?img_index=3&igsi=MXBn", "https://www.instagram.com/p/DbLVGJAk7WC"},
 		{"https://www.instagram.com/p/DbLVGJAk7WC/", "https://www.instagram.com/p/DbLVGJAk7WC"},

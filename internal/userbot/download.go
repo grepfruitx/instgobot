@@ -21,10 +21,6 @@ func checkSize(size int64) error {
 	return nil
 }
 
-// downloadMediaStream streams loc directly through an io.Pipe — no
-// buffering, for the single-item send path. The returned reader must be
-// closed by the caller; closing propagates any download error into the
-// concurrent read (e.g. multipart upload) consuming it.
 func downloadMediaStream(ctx context.Context, api *tg.Client, loc tg.InputFileLocationClass) io.ReadCloser {
 	pr, pw := io.Pipe()
 	go func() {
@@ -34,11 +30,6 @@ func downloadMediaStream(ctx context.Context, api *tg.Client, loc tg.InputFileLo
 	return pr
 }
 
-// downloadMediaToFile writes loc to a temp file instead of buffering in
-// memory, for batch/album sends: we need to know per-item success before
-// deciding what goes into the group, which a live io.Pipe can't tell us
-// without either buffering or serializing the whole batch. Caller must
-// remove the returned path.
 func downloadMediaToFile(ctx context.Context, api *tg.Client, loc tg.InputFileLocationClass) (string, error) {
 	f, err := os.CreateTemp("", "tgmedia_*")
 	if err != nil {

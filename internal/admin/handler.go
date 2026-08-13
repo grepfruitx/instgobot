@@ -57,7 +57,6 @@ func parseLimit(args []string, fallback int) int {
 }
 
 func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message string, userID int64) bool {
-	// re-checked even though callers already gate on this — don't remove
 	if !config.IsAdmin(userID) {
 		return false
 	}

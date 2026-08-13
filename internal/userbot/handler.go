@@ -81,7 +81,6 @@ func isNoAccessError(err error) bool {
 }
 
 func storyMediaOf(item tg.StoryItemClass) (tg.MessageMediaClass, bool) {
-	// ok=false also covers deleted/skipped story variants, which carry no media
 	full, ok := item.(*tg.StoryItem)
 	if !ok {
 		return nil, false

@@ -166,7 +166,7 @@ func TestConcurrentWritesDoNotFailWithBusy(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			chatID := int64(1000 + i%10) // 10 distinct users, 10 writes each — real contention
+			chatID := int64(1000 + i%10)
 			err := s.RecordDownload(chatID, "https://example.com/x", "instagram", "video", true, nil, nil)
 			errCh <- err
 		}(i)
@@ -196,7 +196,7 @@ func TestConcurrentTogglesAreAtomic(t *testing.T) {
 		t.Fatalf("UpsertUser: %v", err)
 	}
 
-	const n = 100 // even, so a lost update would flip the final state
+	const n = 100
 	errCh := make(chan error, n)
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
@@ -496,7 +496,6 @@ func TestPostCacheManifest(t *testing.T) {
 		t.Fatalf("unexpected manifest: %+v", pc)
 	}
 
-	// re-caching the same post must overwrite, not duplicate or fail
 	if err := s.SetPostCache("https://example.com/p/abc", 0, 0, "only text"); err != nil {
 		t.Fatalf("SetPostCache (upsert): %v", err)
 	}
@@ -516,7 +515,6 @@ func TestClearCacheAlsoDropsManifest(t *testing.T) {
 		t.Fatalf("SetPostCache: %v", err)
 	}
 
-	// admin pastes the link with the query string still attached
 	rows, err := s.ClearCache("https://www.instagram.com/p/ABC/?img_index=2")
 	if err != nil {
 		t.Fatalf("ClearCache: %v", err)

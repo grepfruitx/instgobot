@@ -30,7 +30,6 @@ func New(st *store.Store, userHandler *userbot.Handler, ytHandler *youtube.Handl
 }
 
 func (r *Router) Handle(ctx context.Context, b *bot.Bot, update *models.Update) {
-	// register via bot.WithDefaultHandler, not the library's pattern-matching handlers
 	if update.Message != nil {
 		r.handleMessage(ctx, b, update.Message)
 	}

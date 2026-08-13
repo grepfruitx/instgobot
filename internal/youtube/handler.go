@@ -183,7 +183,6 @@ func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, usern
 			return false
 		}
 		_ = h.st.RecordCacheEvent("youtube", false)
-		// stale file_id — fall through to re-download
 	} else {
 		_ = h.st.RecordCacheEvent("youtube", false)
 	}

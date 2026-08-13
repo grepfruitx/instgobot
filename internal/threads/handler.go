@@ -84,7 +84,6 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 			return
 		}
 		_ = st.RecordCacheEvent(plat, false)
-		// stale file_ids — fall through to a real fetch
 	} else {
 		_ = st.RecordCacheEvent(plat, false)
 	}

@@ -9,8 +9,6 @@ import (
 	"testing"
 )
 
-// captured from the real API — a text-only post it wrongly reports as success,
-// handing back the author's avatar as the only media
 const profilePicURL = "https://scontent-bom5-1.cdninstagram.com/v/t51.82787-19/765694086_18076529336452977_7917588713912414658_n.jpg?stp=dst-jpg_s640x640_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby45NDQuYzIifQ&_nc_ht=scontent-bom5-1.cdninstagram.com"
 
 const realPhotoURL = "https://scontent-bom5-2.cdninstagram.com/v/t51.82787-15/751784491_17978089551103484_304340551267970841_n.jpg?stp=dst-jpg_e35_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6IkNBUk9VU0VMX0lURU0ueHBpZHMuNDAzMi5zZHIucmVndWxhcl9waG90by5DMyJ9"
@@ -70,8 +68,6 @@ func TestGetPostContentCarousel(t *testing.T) {
 	}
 }
 
-// a text-only post the API mislabels as success, handing back only the avatar:
-// the avatar must be dropped but the text kept, since the text is deliverable
 func TestGetPostContentDropsProfilePictureKeepsText(t *testing.T) {
 	newAPIServer(t, http.StatusOK, `{
 		"success": true, "type": "image", "author": "travelisgooood",

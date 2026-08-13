@@ -30,9 +30,6 @@ type sentMessage struct {
 	Text   string
 }
 
-// syncSentMessages guards sent behind a mutex — broadcast() fans out sends
-// across goroutines within a batch, so concurrent tests need this, not just
-// the ones that happen to send one message at a time.
 type syncSentMessages struct {
 	mu   sync.Mutex
 	msgs []sentMessage

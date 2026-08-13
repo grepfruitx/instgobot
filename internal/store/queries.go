@@ -230,7 +230,7 @@ func (s *Store) GetActivityByHour() ([]HourActivity, error) {
 }
 
 type WeekdayActivity struct {
-	Weekday int // 0=Sunday..6=Saturday, Moscow-local via the same +3h shift as GetActivityByHour
+	Weekday int
 	Count   int64
 }
 

@@ -74,8 +74,6 @@ func fakeTelegram(t *testing.T) (*bot.Bot, *captured) {
 	return b, cap
 }
 
-// the whole point of the cache-before-fetch reorder: a link the bot has already
-// served must cost neither an API call nor a CDN download the second time
 func TestProcessRepeatLinkCostsNoUpstreamCalls(t *testing.T) {
 	var cdnHits, apiHits int32
 
@@ -132,10 +130,8 @@ func TestProcessRepeatLinkCostsNoUpstreamCalls(t *testing.T) {
 	}
 }
 
-// a post longer than a caption can hold must fall back to a separate message,
-// otherwise Telegram rejects the send and the media is lost with it
 func TestProcessLongTextFallsBackToSeparateMessage(t *testing.T) {
-	longText := strings.Repeat("длинный текст поста ", 120) // ~2400 UTF-16 units
+	longText := strings.Repeat("длинный текст поста ", 120)
 
 	cdn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := []byte("fake-jpeg-bytes")
@@ -170,7 +166,6 @@ func TestProcessLongTextFallsBackToSeparateMessage(t *testing.T) {
 	}
 }
 
-// a link that differs only by carousel index must reuse the same cache entry
 func TestProcessCarouselIndexVariantHitsSameCache(t *testing.T) {
 	var apiHits int32
 
@@ -203,7 +198,6 @@ func TestProcessCarouselIndexVariantHitsSameCache(t *testing.T) {
 	}
 }
 
-// a text-only post must be cached too, otherwise every repeat re-hits the API
 func TestProcessTextOnlyPostIsCached(t *testing.T) {
 	var apiHits int32
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

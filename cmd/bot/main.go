@@ -105,10 +105,6 @@ func main() {
 	slog.Info("instgobot stopped")
 }
 
-// startUserbot connects the MTProto client in the background. A failure
-// here degrades Telegram stories/posts gracefully (each request just errors)
-// rather than taking down Instagram/TikTok/YouTube/Threads with it, so it
-// only logs — never os.Exit's.
 func startUserbot(ctx context.Context, uc *userbot.Client) {
 	ready := make(chan struct{})
 	errCh := make(chan error, 1)

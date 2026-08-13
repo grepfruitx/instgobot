@@ -26,9 +26,6 @@ func newTestStore(t *testing.T) *store.Store {
 
 func strp(s string) *string { return &s }
 
-// fakeTelegramServer answers every Bot API method with a generic success
-// envelope carrying a fixed file_id, so we can exercise the real send path
-// (including multipart upload marshaling) without hitting real Telegram.
 func fakeTelegramServer(t *testing.T, fileID string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

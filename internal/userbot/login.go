@@ -45,7 +45,6 @@ func (terminalAuth) SignUp(context.Context) (auth.UserInfo, error) {
 }
 
 func Login(ctx context.Context, cfg *config.Config) error {
-	// one-time manual step (see cmd/userbot-login) — not called from cmd/bot
 	c := NewClient(cfg)
 	return c.tg.Run(ctx, func(ctx context.Context) error {
 		flow := auth.NewFlow(terminalAuth{}, auth.SendCodeOptions{})

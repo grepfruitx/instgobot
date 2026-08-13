@@ -181,8 +181,6 @@ func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, userna
 }
 
 func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64, channelChatID int64, messageID int) bool {
-	// channelChatID is the Bot-API-style "-100<id>" form from platform.ParseTelegramLink,
-	// converted below to the bare MTProto id that ResolveChannelID expects
 	sourceURL := fmt.Sprintf("t.me/c/%d/%d", -channelChatID, messageID)
 	loading := h.startLoading(ctx, chatID, "Загружаю пост...")
 
@@ -217,7 +215,6 @@ func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64,
 }
 
 func rawChannelID(chatStyleID int64) (int64, error) {
-	// inverts "-100"+digits string concatenation — NOT arithmetic, don't "simplify"
 	s := strconv.FormatInt(-chatStyleID, 10)
 	if !strings.HasPrefix(s, "100") || len(s) <= 3 {
 		return 0, fmt.Errorf("not a channel-style id: %d", chatStyleID)

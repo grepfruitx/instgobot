@@ -62,7 +62,6 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 				return
 			}
 			_ = st.RecordCacheEvent(plat, false)
-			// stale file_ids — fall through to a real scrape
 		}
 	}
 
@@ -161,7 +160,6 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 			return
 		}
 		_ = st.RecordCacheEvent(plat, false)
-		// stale file_id — fall through to re-render
 	} else {
 		_ = st.RecordCacheEvent(plat, false)
 	}
