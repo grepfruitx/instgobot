@@ -15,13 +15,14 @@ import (
 )
 
 type Handler struct {
-	b  *bot.Bot
-	st *store.Store
-	uc *userbot.Client
+	b       *bot.Bot
+	st      *store.Store
+	uc      *userbot.Client
+	restart func()
 }
 
-func New(b *bot.Bot, st *store.Store, uc *userbot.Client) *Handler {
-	return &Handler{b: b, st: st, uc: uc}
+func New(b *bot.Bot, st *store.Store, uc *userbot.Client, restart func()) *Handler {
+	return &Handler{b: b, st: st, uc: uc, restart: restart}
 }
 
 func (h *Handler) send(ctx context.Context, chatID int64, text string) {
@@ -109,6 +110,8 @@ func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message strin
 		h.handleBannedList(ctx, chatID)
 	case "/health":
 		h.handleHealth(ctx, chatID)
+	case "/restart":
+		h.handleRestart(ctx, chatID)
 	default:
 		return false
 	}

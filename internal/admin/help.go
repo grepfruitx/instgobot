@@ -32,6 +32,7 @@ func (h *Handler) handleHelp(ctx context.Context, chatID int64) {
 		"/unban <chat_id> - разбанить пользователя",
 		"/banned - список забаненных",
 		"/health - диск/память/userbot/платформы",
+		"/restart - перезапустить бота (дождётся активных загрузок)",
 		"/ah - эта справка",
 		"",
 		"Примеры:",

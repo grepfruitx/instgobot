@@ -77,7 +77,12 @@ func main() {
 	}()
 
 	ytHandler := youtube.New(b, st, c, limiter, cfg)
-	adminHandler := admin.New(b, st, uc)
+	adminHandler := admin.New(b, st, uc, func() {
+		select {
+		case sigCh <- syscall.SIGTERM:
+		default:
+		}
+	})
 	userHandler := userbot.New(uc, b, st)
 	rt = router.New(st, userHandler, ytHandler, adminHandler, limiter, cfg.AdminUsername)
 
