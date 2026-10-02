@@ -82,7 +82,7 @@ func main() {
 		case sigCh <- syscall.SIGTERM:
 		default:
 		}
-	})
+	}, cfg.YtDlpPath)
 	userHandler := userbot.New(uc, b, st)
 	rt = router.New(st, userHandler, ytHandler, adminHandler, limiter, cfg.AdminUsername)
 

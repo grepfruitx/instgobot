@@ -10,7 +10,7 @@ import (
 func TestPlatformToggleNotifiesWaitlistOnPon(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessagesConcurrent(t)
-	h := New(b, st, nil, nil)
+	h := New(b, st, nil, nil, "")
 	adminID := config.AdminUserIDs[0]
 
 	if err := st.SetPlatformDisabled("tiktok", true); err != nil {
@@ -51,7 +51,7 @@ func TestPlatformToggleNotifiesWaitlistOnPon(t *testing.T) {
 func TestPlatformToggleSkipsWaitlistOnPoff(t *testing.T) {
 	st := newTestStore(t)
 	b, sent := newTestBotCapturingMessagesConcurrent(t)
-	h := New(b, st, nil, nil)
+	h := New(b, st, nil, nil, "")
 	adminID := config.AdminUserIDs[0]
 
 	if err := st.JoinWaitlist(200, "instagram"); err != nil {

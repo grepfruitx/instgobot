@@ -59,7 +59,7 @@ func newTestRouter(t *testing.T, st *store.Store, b *bot.Bot) *Router {
 	t.Helper()
 	c := cache.New(t.Context())
 	limiter := ratelimit.New(c)
-	adminHandler := admin.New(b, st, nil, nil)
+	adminHandler := admin.New(b, st, nil, nil, "")
 	ytHandler := youtube.New(b, st, c, limiter, &config.Config{YtDlpPath: "yt-dlp"})
 
 	return New(st, nil, ytHandler, adminHandler, limiter, "@someadmin")

@@ -15,14 +15,15 @@ import (
 )
 
 type Handler struct {
-	b       *bot.Bot
-	st      *store.Store
-	uc      *userbot.Client
-	restart func()
+	b         *bot.Bot
+	st        *store.Store
+	uc        *userbot.Client
+	restart   func()
+	ytDlpPath string
 }
 
-func New(b *bot.Bot, st *store.Store, uc *userbot.Client, restart func()) *Handler {
-	return &Handler{b: b, st: st, uc: uc, restart: restart}
+func New(b *bot.Bot, st *store.Store, uc *userbot.Client, restart func(), ytDlpPath string) *Handler {
+	return &Handler{b: b, st: st, uc: uc, restart: restart, ytDlpPath: ytDlpPath}
 }
 
 func (h *Handler) send(ctx context.Context, chatID int64, text string) {
@@ -112,6 +113,10 @@ func (h *Handler) HandleCommand(ctx context.Context, chatID int64, message strin
 		h.handleHealth(ctx, chatID)
 	case "/restart":
 		h.handleRestart(ctx, chatID)
+	case "/ytdlp":
+		h.handleYtDlp(ctx, chatID, args)
+	case "/logs":
+		h.handleLogs(ctx, chatID, args)
 	default:
 		return false
 	}

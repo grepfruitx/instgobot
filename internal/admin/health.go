@@ -45,6 +45,8 @@ func memoryRSS() (string, bool) {
 func (h *Handler) handleHealth(ctx context.Context, chatID int64) {
 	var sb strings.Builder
 	sb.WriteString("Здоровье бота:\n\n")
+	fmt.Fprintf(&sb, "Версия: %s\n", buildVersion())
+	fmt.Fprintf(&sb, "Аптайм: %s\n", uptime())
 
 	if h.uc.Connected() {
 		sb.WriteString("Userbot: подключён\n")
