@@ -75,3 +75,24 @@ func TestChooseVideoFormatNoMatch(t *testing.T) {
 		t.Fatalf("expected nil, got %+v", chosen)
 	}
 }
+
+func TestChooseVideoFormatSizeSumsAdaptiveParts(t *testing.T) {
+	formats := []ytDlpFormat{
+		{FormatID: "137", VCodec: "avc1", ACodec: "none", Ext: "mp4", Height: 1080, Width: 1920, Filesize: maxUploadBytes},
+		{FormatID: "140", VCodec: "none", ACodec: "mp4a", Ext: "m4a", ABR: 128, FilesizeApprox: 1},
+	}
+	chosen := chooseVideoFormat(formats, 1080)
+	if chosen == nil || chosen.Size != maxUploadBytes+1 || !chosen.tooLarge() {
+		t.Fatalf("expected oversize adaptive pick, got %+v", chosen)
+	}
+}
+
+func TestChooseVideoFormatUnknownSizeAllowed(t *testing.T) {
+	formats := []ytDlpFormat{
+		{FormatID: "18", VCodec: "avc1", ACodec: "mp4a", Ext: "mp4", Height: 360, Width: 640},
+	}
+	chosen := chooseVideoFormat(formats, 360)
+	if chosen == nil || chosen.tooLarge() {
+		t.Fatalf("unknown size must not be rejected, got %+v", chosen)
+	}
+}

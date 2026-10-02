@@ -14,6 +14,7 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
@@ -113,7 +114,7 @@ func ProcessSinglePhoto(ctx context.Context, b *bot.Bot, st *store.Store, chatID
 func ProcessSingleMedia(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, url string, kind Kind, p Post) (bool, error) {
 	if url == "" {
 		sent, _ := telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID, Text: fmt.Sprintf("Не удалось получить URL %s.", kind.ru()),
+			ChatID: chatID, Text: fmt.Sprintf(messages.MediaURLMissingFmt, kind.ru()),
 		})
 		if sent != nil {
 			telegramapi.SendErrorToAdmin(ctx, b, fmt.Errorf("no %s url", kind), fmt.Sprintf("single %s", kind), "", &chatID, p.Username)
@@ -177,14 +178,14 @@ func classifyMediaError(ctx context.Context, b *bot.Bot, chatID int64, kind Kind
 	var tooLarge *telegramapi.FileTooLargeError
 	if errors.As(err, &tooLarge) {
 		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID, Text: "Слишком большой файл для загрузки. Максимальный размер: 50MB.",
+			ChatID: chatID, Text: messages.MediaTooLarge,
 		})
 		return true, false
 	}
 	var fetchErr *telegramapi.MediaFetchError
 	if errors.As(err, &fetchErr) {
 		_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-			ChatID: chatID, Text: fmt.Sprintf("Не удалось загрузить файл: %s", fetchErr.Reason),
+			ChatID: chatID, Text: fmt.Sprintf(messages.MediaFetchFailedFmt, fetchErr.Reason),
 		})
 		return false, false
 	}

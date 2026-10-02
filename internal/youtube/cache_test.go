@@ -3,67 +3,35 @@ package youtube
 import (
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"github.com/grepfruitx/instgobot/internal/cache"
 )
 
-func newTestRedis(t *testing.T) *redis.Client {
-	t.Helper()
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(mr.Close)
+func TestPendingURLTakeIsOneShot(t *testing.T) {
+	c := cache.New(t.Context())
 
-	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { rdb.Close() })
-	return rdb
-}
-
-func TestPendingURLRoundTrip(t *testing.T) {
-	rdb := newTestRedis(t)
-	ctx := t.Context()
-
-	if _, ok, err := getPendingURL(ctx, rdb, 1); err != nil || ok {
-		t.Fatalf("expected miss, got ok=%v err=%v", ok, err)
+	if _, ok := takePendingURL(c, 1); ok {
+		t.Fatal("expected miss")
 	}
 
-	if err := setPendingURL(ctx, rdb, 1, "https://youtube.com/watch?v=x"); err != nil {
-		t.Fatalf("setPendingURL: %v", err)
-	}
+	setPendingURL(c, 1, "https://youtube.com/watch?v=x")
 
-	url, ok, err := getPendingURL(ctx, rdb, 1)
-	if err != nil || !ok || url != "https://youtube.com/watch?v=x" {
-		t.Fatalf("unexpected result: url=%q ok=%v err=%v", url, ok, err)
+	url, ok := takePendingURL(c, 1)
+	if !ok || url != "https://youtube.com/watch?v=x" {
+		t.Fatalf("unexpected result: url=%q ok=%v", url, ok)
 	}
-
-	if err := deletePendingURL(ctx, rdb, 1); err != nil {
-		t.Fatalf("deletePendingURL: %v", err)
-	}
-	if _, ok, _ := getPendingURL(ctx, rdb, 1); ok {
-		t.Fatal("expected miss after delete")
+	if _, ok := takePendingURL(c, 1); ok {
+		t.Fatal("expected miss after take")
 	}
 }
 
-func TestMetaCacheRoundTrip(t *testing.T) {
-	rdb := newTestRedis(t)
-	ctx := t.Context()
+func TestGetYtMetaServesFromCache(t *testing.T) {
+	c := cache.New(t.Context())
+	meta := &YtMeta{Title: "Test video", Duration: 42}
+	c.Set(metaKey("https://youtube.com/watch?v=x"), meta, metaTTL)
 
-	if _, ok, err := getCachedMeta(ctx, rdb, "https://youtube.com/watch?v=x"); err != nil || ok {
-		t.Fatalf("expected miss, got ok=%v err=%v", ok, err)
-	}
-
-	meta := &YtMeta{Title: "Test video", Duration: 42, ThumbnailURL: "https://thumb.jpg", Formats: []ytDlpFormat{{FormatID: "18"}}}
-	if err := setCachedMeta(ctx, rdb, "https://youtube.com/watch?v=x", meta); err != nil {
-		t.Fatalf("setCachedMeta: %v", err)
-	}
-
-	got, ok, err := getCachedMeta(ctx, rdb, "https://youtube.com/watch?v=x")
-	if err != nil || !ok {
-		t.Fatalf("unexpected result: ok=%v err=%v", ok, err)
-	}
-	if got.Title != "Test video" || got.Duration != 42 || len(got.Formats) != 1 {
-		t.Fatalf("unexpected meta: %+v", got)
+	got, err := getYtMeta(t.Context(), c, "/nonexistent/yt-dlp", "https://youtube.com/watch?v=x")
+	if err != nil || got != meta {
+		t.Fatalf("expected cached meta, got %+v err=%v", got, err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/store"
 )
 
@@ -60,9 +61,9 @@ func (e *APIError) Error() string {
 func (e *APIError) UserFacing() string {
 	switch e.Code {
 	case codeNoMedia:
-		return "В этом посте нет медиафайлов — только текст."
+		return messages.ThreadsTextOnly
 	case codeInvalidURL:
-		return "Не удалось распознать ссылку на пост Threads. Скопируйте полную ссылку."
+		return messages.ThreadsInvalidURL
 	default:
 		return ""
 	}

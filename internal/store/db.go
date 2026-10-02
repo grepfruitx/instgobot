@@ -24,12 +24,9 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_txlock=immediate"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
-		return nil, err
-	}
-
-	if err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;").Error; err != nil {
 		return nil, err
 	}
 

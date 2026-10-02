@@ -90,7 +90,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 
 	content, err := getPostContent(ctx, message)
 	if err != nil {
-		text := "Не удалось скачать медиа с Threads. Попробуйте еще раз."
+		text := messages.ThreadsDownloadFailed
 		reportToAdmin := true
 
 		var apiErr *APIError
@@ -115,7 +115,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 		}
 		if content.Text == "" {
 			_, _ = telegramapi.SafeSendMessage(ctx, b, &bot.SendMessageParams{
-				ChatID: chatID, Text: "В этом посте нет ни медиафайлов, ни текста.",
+				ChatID: chatID, Text: messages.ThreadsEmptyPost,
 			})
 			st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 			return

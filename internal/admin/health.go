@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -46,14 +45,6 @@ func memoryRSS() (string, bool) {
 func (h *Handler) handleHealth(ctx context.Context, chatID int64) {
 	var sb strings.Builder
 	sb.WriteString("Здоровье бота:\n\n")
-
-	redisCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	if err := h.rdb.Ping(redisCtx).Err(); err != nil {
-		fmt.Fprintf(&sb, "Redis: недоступен (%v)\n", err)
-	} else {
-		sb.WriteString("Redis: ок\n")
-	}
 
 	if h.uc.Connected() {
 		sb.WriteString("Userbot: подключён\n")

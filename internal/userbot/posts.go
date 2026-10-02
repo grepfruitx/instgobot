@@ -13,6 +13,7 @@ import (
 	"github.com/gotd/td/tg"
 
 	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
 
@@ -73,14 +74,14 @@ func getPostMessages(ctx context.Context, api *tg.Client, channel tg.InputChanne
 	return album, nil
 }
 
-func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Client, messages []*tg.Message) bool {
+func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Client, posts []*tg.Message) bool {
 	type withMedia struct {
 		loc  tg.InputFileLocationClass
 		kind mediaKind
 		size int64
 	}
 	var items []withMedia
-	for _, m := range messages {
+	for _, m := range posts {
 		if m.Media == nil {
 			continue
 		}
@@ -137,11 +138,11 @@ func (h *Handler) sendPostMessages(ctx context.Context, chatID int64, api *tg.Cl
 func (h *Handler) genericPostFailure(ctx context.Context, chatID int64, loading *loadingHandle, sourceURL string, username *string, err error) bool {
 	loading.delete(ctx)
 	if isNoAccessError(err) {
-		h.sendText(ctx, chatID, fmt.Sprintf("Нет доступа к каналу. Возможно, канал приватный или бот не является участником.\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.ChannelNoAccessFmt, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, username, nil)
 		return false
 	}
-	h.sendText(ctx, chatID, fmt.Sprintf("Ошибка при загрузке поста. Попробуйте позже.\n%s", config.BotTag))
+	h.sendText(ctx, chatID, fmt.Sprintf(messages.PostErrorFmt, config.BotTag))
 	telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram post download", "", &chatID, username)
 	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, username, nil)
 	return false
@@ -149,7 +150,7 @@ func (h *Handler) genericPostFailure(ctx context.Context, chatID int64, loading 
 
 func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, username string, postID int) bool {
 	sourceURL := fmt.Sprintf("t.me/%s/%d", username, postID)
-	loading := h.startLoading(ctx, chatID, "Загружаю пост...")
+	loading := h.startLoading(ctx, chatID, messages.PostLoading)
 
 	peer, err := h.client.Peers().Resolve(ctx, username)
 	if err != nil {
@@ -160,20 +161,20 @@ func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, userna
 		return h.genericPostFailure(ctx, chatID, loading, sourceURL, &username, fmt.Errorf("@%s is not a channel", username))
 	}
 
-	messages, err := getPostMessages(ctx, h.client.API(), channel.InputChannel(), peer.InputPeer(), postID)
+	posts, err := getPostMessages(ctx, h.client.API(), channel.InputChannel(), peer.InputPeer(), postID)
 	if err != nil {
 		return h.genericPostFailure(ctx, chatID, loading, sourceURL, &username, err)
 	}
-	if len(messages) == 0 {
+	if len(posts) == 0 {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Пост не найден у @%s.\n%s", username, config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.PostNotFoundByUserFmt, username, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, &username, nil)
 		return false
 	}
 
-	sent := h.sendPostMessages(ctx, chatID, h.client.API(), messages)
+	sent := h.sendPostMessages(ctx, chatID, h.client.API(), posts)
 	if !sent {
-		h.sendText(ctx, chatID, fmt.Sprintf("Пост не содержит медиа.\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.PostNoMediaFmt, config.BotTag))
 	}
 	loading.delete(ctx)
 	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", sent, &username, nil)
@@ -182,7 +183,7 @@ func (h *Handler) DownloadTelegramPost(ctx context.Context, chatID int64, userna
 
 func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64, channelChatID int64, messageID int) bool {
 	sourceURL := fmt.Sprintf("t.me/c/%d/%d", -channelChatID, messageID)
-	loading := h.startLoading(ctx, chatID, "Загружаю пост...")
+	loading := h.startLoading(ctx, chatID, messages.PostLoading)
 
 	rawID, err := rawChannelID(channelChatID)
 	if err != nil {
@@ -194,20 +195,20 @@ func (h *Handler) DownloadPrivateTelegramPost(ctx context.Context, chatID int64,
 		return h.genericPostFailure(ctx, chatID, loading, sourceURL, nil, err)
 	}
 
-	messages, err := getPostMessages(ctx, h.client.API(), channel.InputChannel(), channel.InputPeer(), messageID)
+	posts, err := getPostMessages(ctx, h.client.API(), channel.InputChannel(), channel.InputPeer(), messageID)
 	if err != nil {
 		return h.genericPostFailure(ctx, chatID, loading, sourceURL, nil, err)
 	}
-	if len(messages) == 0 {
+	if len(posts) == 0 {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Пост не найден.\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.PostNotFoundFmt, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", false, nil, nil)
 		return false
 	}
 
-	sent := h.sendPostMessages(ctx, chatID, h.client.API(), messages)
+	sent := h.sendPostMessages(ctx, chatID, h.client.API(), posts)
 	if !sent {
-		h.sendText(ctx, chatID, fmt.Sprintf("Пост не содержит медиа.\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.PostNoMediaFmt, config.BotTag))
 	}
 	loading.delete(ctx)
 	h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "post", sent, nil, nil)

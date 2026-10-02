@@ -12,13 +12,11 @@ import (
 	"github.com/go-telegram/bot/models"
 
 	"github.com/grepfruitx/instgobot/internal/admin"
+	"github.com/grepfruitx/instgobot/internal/cache"
 	"github.com/grepfruitx/instgobot/internal/config"
 	"github.com/grepfruitx/instgobot/internal/ratelimit"
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/youtube"
-
-	"github.com/alicebob/miniredis/v2"
-	goredis "github.com/redis/go-redis/v9"
 )
 
 type sentMessage struct {
@@ -59,17 +57,10 @@ func newTestBotCapturingMessages(t *testing.T) (*bot.Bot, *[]sentMessage) {
 
 func newTestRouter(t *testing.T, st *store.Store, b *bot.Bot) *Router {
 	t.Helper()
-	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis.Run: %v", err)
-	}
-	t.Cleanup(mr.Close)
-	rdb := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
-	t.Cleanup(func() { rdb.Close() })
-
-	limiter := ratelimit.New(rdb)
-	adminHandler := admin.New(b, st, rdb, nil)
-	ytHandler := youtube.New(b, st, rdb, limiter, &config.Config{YtDlpPath: "yt-dlp"})
+	c := cache.New(t.Context())
+	limiter := ratelimit.New(c)
+	adminHandler := admin.New(b, st, nil)
+	ytHandler := youtube.New(b, st, c, limiter, &config.Config{YtDlpPath: "yt-dlp"})
 
 	return New(st, nil, ytHandler, adminHandler, limiter, "@someadmin")
 }

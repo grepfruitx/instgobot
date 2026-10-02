@@ -40,8 +40,7 @@ type Config struct {
 	TelegramAPIHash    string `env:"TELEGRAM_API_HASH,required"`
 	UserbotSessionPath string `env:"USERBOT_SESSION_PATH" envDefault:"/root/instgobot/userbot.session"`
 
-	DBPath    string `env:"DB_PATH" envDefault:"/root/instgobot/bot_data.sqlite"`
-	RedisAddr string `env:"REDIS_ADDR" envDefault:"localhost:6379"`
+	DBPath string `env:"DB_PATH" envDefault:"/root/instgobot/bot_data.sqlite"`
 
 	YtDlpPath string `env:"YT_DLP_PATH" envDefault:"yt-dlp"`
 }

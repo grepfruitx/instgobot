@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-telegram/bot"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/grepfruitx/instgobot/internal/config"
 	"github.com/grepfruitx/instgobot/internal/messages"
@@ -16,14 +15,13 @@ import (
 )
 
 type Handler struct {
-	b   *bot.Bot
-	st  *store.Store
-	rdb *redis.Client
-	uc  *userbot.Client
+	b  *bot.Bot
+	st *store.Store
+	uc *userbot.Client
 }
 
-func New(b *bot.Bot, st *store.Store, rdb *redis.Client, uc *userbot.Client) *Handler {
-	return &Handler{b: b, st: st, rdb: rdb, uc: uc}
+func New(b *bot.Bot, st *store.Store, uc *userbot.Client) *Handler {
+	return &Handler{b: b, st: st, uc: uc}
 }
 
 func (h *Handler) send(ctx context.Context, chatID int64, text string) {

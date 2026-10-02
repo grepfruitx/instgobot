@@ -48,20 +48,14 @@ func main() {
 	defer st.Close()
 	telegramapi.SetStore(st)
 
-	rdb, err := cache.New(cfg.RedisAddr)
-	if err != nil {
-		slog.Error("redis connect failed", "error", err)
-		os.Exit(1)
-	}
-	defer rdb.Close()
-
-	limiter := ratelimit.New(rdb)
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	c := cache.New(ctx)
+	limiter := ratelimit.New(c)
 
 	uc := userbot.NewClient(cfg)
 	startUserbot(ctx, uc)
@@ -82,8 +76,8 @@ func main() {
 		cancel()
 	}()
 
-	ytHandler := youtube.New(b, st, rdb, limiter, cfg)
-	adminHandler := admin.New(b, st, rdb, uc)
+	ytHandler := youtube.New(b, st, c, limiter, cfg)
+	adminHandler := admin.New(b, st, uc)
 	userHandler := userbot.New(uc, b, st)
 	rt = router.New(st, userHandler, ytHandler, adminHandler, limiter, cfg.AdminUsername)
 

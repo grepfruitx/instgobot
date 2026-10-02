@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"regexp"
 	"strings"
@@ -46,7 +47,12 @@ func (r *Router) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 	}
 
 	if !config.IsAdmin(userID) {
-		if banned, _ := r.st.IsBanned(chatID); banned {
+		banned, err := r.st.IsBanned(chatID)
+		if err != nil {
+			slog.Error("ban check failed, dropping message", "chat_id", chatID, "error", err)
+			return
+		}
+		if banned {
 			return
 		}
 	}
@@ -92,15 +98,10 @@ func (r *Router) handleMessage(ctx context.Context, b *bot.Bot, msg *models.Mess
 }
 
 func (r *Router) handleTelegramContent(ctx context.Context, b *bot.Bot, text string, chatID, userID int64) {
-	rl, err := r.limiter.CheckTelegramStories(ctx, userID, config.IsAdmin(userID))
-	if err != nil {
-		telegramapi.SendErrorToAdmin(ctx, b, err, "telegram stories rate limit", text, &chatID, nil)
-		return
-	}
-	if !rl.Allowed {
+	if rl := r.limiter.CheckTelegramStories(userID, config.IsAdmin(userID)); !rl.Allowed {
 		_ = r.st.RecordRateLimitHit("tgstories")
 		minutesLeft := int(math.Ceil(time.Until(rl.ResetTime).Minutes()))
-		r.send(ctx, b, chatID, fmt.Sprintf("Лимит: 1 запрос раз в 3 минуты. Попробуйте снова через %d мин.", minutesLeft))
+		r.send(ctx, b, chatID, fmt.Sprintf(messages.TelegramStoriesLimitFmt, minutesLeft))
 		return
 	}
 
@@ -111,7 +112,7 @@ func (r *Router) handleTelegramContent(ctx context.Context, b *bot.Bot, text str
 
 	parsed, ok := platform.ParseTelegramLink(text)
 	if !ok {
-		r.send(ctx, b, chatID, "Не удалось распознать ссылку Telegram.")
+		r.send(ctx, b, chatID, messages.TelegramLinkUnparsed)
 		return
 	}
 
@@ -137,12 +138,7 @@ func (r *Router) handleMediaURL(ctx context.Context, b *bot.Bot, chatID int64, u
 	}
 
 	if !config.IsAdmin(userID) {
-		rl, err := r.limiter.CheckGeneral(ctx, chatID)
-		if err != nil {
-			telegramapi.SendErrorToAdmin(ctx, b, err, "general rate limit", text, &chatID, username)
-			return
-		}
-		if !rl.Allowed {
+		if rl := r.limiter.CheckGeneral(chatID); !rl.Allowed {
 			_ = r.st.RecordRateLimitHit("general")
 			ratelimit.SendGeneralLimitMessage(ctx, b, chatID, rl.ResetTime)
 			return
@@ -171,10 +167,14 @@ func (r *Router) rejectIfPlatformDisabled(ctx context.Context, b *bot.Bot, chatI
 	}
 	plat := platform.DetectPlatform(text)
 	disabled, err := r.st.IsPlatformDisabled(plat)
-	if err != nil || !disabled {
+	if err != nil {
+		slog.Error("platform status check failed, allowing request", "platform", plat, "error", err)
+		return false
+	}
+	if !disabled {
 		return false
 	}
 	_ = r.st.JoinWaitlist(chatID, plat)
-	r.send(ctx, b, chatID, "Скачивание с этой платформы временно не работает. Мы уже занимаемся этим. Как только заработает — напишем.")
+	r.send(ctx, b, chatID, messages.PlatformDisabled)
 	return true
 }

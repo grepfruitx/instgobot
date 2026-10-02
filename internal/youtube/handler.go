@@ -16,10 +16,11 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/redis/go-redis/v9"
 
+	"github.com/grepfruitx/instgobot/internal/cache"
 	"github.com/grepfruitx/instgobot/internal/config"
 	"github.com/grepfruitx/instgobot/internal/media"
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/ratelimit"
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
@@ -32,13 +33,13 @@ const shortsDefaultQuality = 720
 type Handler struct {
 	b       *bot.Bot
 	st      *store.Store
-	rdb     *redis.Client
+	c       *cache.Cache
 	limiter *ratelimit.Limiter
 	cfg     *config.Config
 }
 
-func New(b *bot.Bot, st *store.Store, rdb *redis.Client, limiter *ratelimit.Limiter, cfg *config.Config) *Handler {
-	return &Handler{b: b, st: st, rdb: rdb, limiter: limiter, cfg: cfg}
+func New(b *bot.Bot, st *store.Store, c *cache.Cache, limiter *ratelimit.Limiter, cfg *config.Config) *Handler {
+	return &Handler{b: b, st: st, c: c, limiter: limiter, cfg: cfg}
 }
 
 func videoCacheType(quality int) string { return fmt.Sprintf("yt_v_%d", quality) }
@@ -47,20 +48,14 @@ const audioCacheType = "yt_a_best"
 
 func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, url string, username *string) {
 	isAdmin := config.IsAdmin(userID)
-	rl, err := h.limiter.PeekYouTube(ctx, userID, isAdmin)
-	if err != nil {
-		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube rate limit peek", url, &chatID, username)
-	} else if !rl.Allowed {
+	if rl := h.limiter.PeekYouTube(userID, isAdmin); !rl.Allowed {
 		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf(messages.YouTubeLimitFmt, sec))
 		return
 	}
 
-	if err := setPendingURL(ctx, h.rdb, chatID, url); err != nil {
-		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube quality picker", url, &chatID, username)
-		return
-	}
+	setPendingURL(h.c, chatID, url)
 
 	var videoButtons [][]models.InlineKeyboardButton
 	for _, q := range staticVideoQualities {
@@ -70,18 +65,18 @@ func (h *Handler) SendQualityPicker(ctx context.Context, chatID, userID int64, u
 		}})
 	}
 
-	_, err = h.b.SendMessage(ctx, &bot.SendMessageParams{
+	_, err := h.b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    chatID,
-		Text:      "<b>YouTube видео</b>\n\nВыберите формат:\n<i>Максимум в Telegram — 2 ГБ</i>",
+		Text:      messages.YouTubePicker,
 		ParseMode: models.ParseModeHTML,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
 			InlineKeyboard: append(videoButtons, []models.InlineKeyboardButton{{
-				Text: "Аудио", CallbackData: fmt.Sprintf("yt:%d:a:0", chatID),
+				Text: messages.YouTubeAudioButton, CallbackData: fmt.Sprintf("yt:%d:a:0", chatID),
 			}}),
 		},
 	})
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось отправить меню.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeMenuFailed)
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube quality picker", url, &chatID, username)
 	}
 }
@@ -106,7 +101,7 @@ func (h *Handler) setPickerLoading(ctx context.Context, chatID int64, messageID 
 		ChatID:    chatID,
 		MessageID: messageID,
 		ReplyMarkup: &models.InlineKeyboardMarkup{
-			InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: "Загрузка...", CallbackData: "yt:noop"}}},
+			InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: messages.YouTubeLoadingButton, CallbackData: "yt:noop"}}},
 		},
 	})
 }
@@ -126,36 +121,25 @@ func (h *Handler) HandleCallback(ctx context.Context, chatID int64, kind string,
 	isAdmin := config.IsAdmin(userID)
 
 	if !isAdmin && !markDownloadActive(userID) {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Дождитесь окончания текущей загрузки.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeWaitCurrent)
 		return
 	}
 
-	rl, err := h.limiter.CheckYouTube(ctx, userID, isAdmin)
-	if err != nil {
-		markDownloadDone(userID)
-		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", "", &chatID, username)
-		return
-	}
-	if !rl.Allowed {
+	if rl := h.limiter.CheckYouTube(userID, isAdmin); !rl.Allowed {
 		markDownloadDone(userID)
 		_ = h.st.RecordRateLimitHit("youtube")
 		sec := int(math.Ceil(time.Until(rl.ResetTime).Seconds()))
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("Лимит: 1 загрузка в 3 минуты. Повторите через %d сек.", sec))
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf(messages.YouTubeLimitFmt, sec))
 		return
 	}
 
 	defer markDownloadDone(userID)
 
-	url, ok, err := getPendingURL(ctx, h.rdb, chatID)
-	if err != nil {
-		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", "", &chatID, username)
-		return
-	}
+	url, ok := takePendingURL(h.c, chatID)
 	if !ok {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сессия истекла. Отправьте ссылку заново.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeSessionExpired)
 		return
 	}
-	_ = deletePendingURL(ctx, h.rdb, chatID)
 
 	h.setPickerLoading(ctx, chatID, messageID)
 	defer h.clearPickerKeyboard(ctx, chatID, messageID)
@@ -209,7 +193,7 @@ func (h *Handler) sendAudio(ctx context.Context, chatID int64, url string, usern
 		return nil
 	})
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось скачать. Попробуйте ещё раз.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeDownloadFailed)
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", url, &chatID, username)
 	}
 	return sent
@@ -278,7 +262,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 	sent := false
 
 	err := telegramapi.WithChatActionErr(ctx, h.b, chatID, models.ChatActionUploadVideo, func() error {
-		meta, err := getYtMeta(ctx, h.rdb, h.cfg.YtDlpPath, url)
+		meta, err := getYtMeta(ctx, h.c, h.cfg.YtDlpPath, url)
 		if err != nil {
 			return err
 		}
@@ -286,9 +270,13 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 		if chosen == nil {
 			return errors.New("no video format found")
 		}
+		if chosen.tooLarge() {
+			_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeTooLarge)
+			return nil
+		}
 
 		if notifyFallback && chosen.Height > 0 && chosen.Height < quality {
-			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf("%dp недоступно, скачиваю лучшее: %dp", quality, chosen.Height))
+			_, _ = telegramapi.SendText(ctx, h.b, chatID, fmt.Sprintf(messages.YouTubeQualityFallbackFmt, quality, chosen.Height))
 		}
 
 		caption := fmt.Sprintf("%s\n\n%s", meta.Title, config.BotTag)
@@ -314,7 +302,7 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 	})
 
 	if err != nil && !telegramapi.IsBotBlockedError(err) {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Не удалось скачать. Попробуйте ещё раз.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeDownloadFailed)
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "youtube download", url, &chatID, username)
 	}
 	return sent
@@ -322,12 +310,12 @@ func (h *Handler) downloadAndSendVideo(ctx context.Context, chatID int64, url st
 
 func (h *Handler) downloadAdaptive(ctx context.Context, chatID int64, url, cacheType string, chosen *chosenVideo, videoOpts *bot.SendVideoParams, rnd int, sent *bool) error {
 	if !acquireAdaptiveSlot() {
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeServerBusy)
 		return nil
 	}
 	if !hasEnoughDiskSpace() {
 		releaseAdaptiveSlot()
-		_, _ = telegramapi.SendText(ctx, h.b, chatID, "Сервер сейчас занят обработкой видео в высоком качестве. Попробуйте через минуту.")
+		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeServerBusy)
 		return nil
 	}
 	defer releaseAdaptiveSlot()

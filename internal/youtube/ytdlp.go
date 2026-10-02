@@ -19,6 +19,18 @@ type ytDlpFormat struct {
 	Width    int     `json:"width"`
 	TBR      float64 `json:"tbr"`
 	ABR      float64 `json:"abr"`
+
+	Filesize       int64 `json:"filesize"`
+	FilesizeApprox int64 `json:"filesize_approx"`
+}
+
+const maxUploadBytes = 2000 * 1024 * 1024
+
+func (f ytDlpFormat) size() int64 {
+	if f.Filesize > 0 {
+		return f.Filesize
+	}
+	return f.FilesizeApprox
 }
 
 type YtMeta struct {
@@ -103,6 +115,11 @@ type chosenVideo struct {
 	FormatID      string
 	Height        int
 	Width         int
+	Size          int64
+}
+
+func (c *chosenVideo) tooLarge() bool {
+	return c.Size > maxUploadBytes
 }
 
 func shortEdge(f ytDlpFormat) int {
@@ -140,7 +157,7 @@ func chooseVideoFormat(formats []ytDlpFormat, quality int) *chosenVideo {
 		v := videoOnly[0]
 		return &chosenVideo{
 			Kind: kindAdaptive, VideoFormatID: v.FormatID, AudioFormatID: audioOnly[0].FormatID,
-			Height: v.Height, Width: v.Width,
+			Height: v.Height, Width: v.Width, Size: v.size() + audioOnly[0].size(),
 		}
 	}
 
@@ -152,7 +169,7 @@ func chooseVideoFormat(formats []ytDlpFormat, quality int) *chosenVideo {
 	})
 	if len(muxed) > 0 {
 		m := muxed[0]
-		return &chosenVideo{Kind: kindMuxed, FormatID: m.FormatID, Height: m.Height, Width: m.Width}
+		return &chosenVideo{Kind: kindMuxed, FormatID: m.FormatID, Height: m.Height, Width: m.Width, Size: m.size()}
 	}
 
 	return nil

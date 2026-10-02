@@ -5,8 +5,23 @@ on:
     branches: [ main ]
 
 jobs:
+  test:
+    name: Vet and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - run: go vet ./...
+
+      - run: go test -race ./...
+
   build:
     name: Build binary
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,17 +55,29 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           source: "bot"
-          target: ${{ secrets.VPS_PROJECT_PATH }}
+          target: ${{ secrets.VPS_PROJECT_PATH }}/release
           strip_components: 0
 
-      - name: Restart service
+      - name: Swap binary and restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          command_timeout: 25m
           script_stop: true
           script: |
-            chmod +x ${{ secrets.VPS_PROJECT_PATH }}/bot
+            set -e
+            cd ${{ secrets.VPS_PROJECT_PATH }}
+            chmod +x release/bot
+            if [ -f bot ]; then cp -f bot bot.prev; fi
+            mv -f release/bot bot
             systemctl restart instgobot
+            sleep 10
+            if ! systemctl is-active --quiet instgobot; then
+              echo "new binary failed to start, rolling back"
+              if [ -f bot.prev ]; then mv -f bot.prev bot; fi
+              systemctl restart instgobot
+              exit 1
+            fi

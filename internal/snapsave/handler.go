@@ -16,6 +16,7 @@ import (
 
 	"github.com/grepfruitx/instgobot/internal/config"
 	"github.com/grepfruitx/instgobot/internal/media"
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/platform"
 	"github.com/grepfruitx/instgobot/internal/store"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
@@ -75,7 +76,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 		}
 
 		telegramapi.SendText(ctx, b, chatID, fmt.Sprintf(
-			"Не удалось скачать медиафайл.\nУбедитесь, что медиафайл существует и не является приватным.\nЕсли ошибка возникает многократно, пишите %s",
+			messages.SnapsaveFailedFmt,
 			adminUsername,
 		))
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New(resp.Message), "snapsave download", message, &chatID, username)
@@ -84,7 +85,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 	}
 
 	if resp.Data == nil || len(resp.Data.Media) == 0 {
-		telegramapi.SendText(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
+		telegramapi.SendText(ctx, b, chatID, messages.MediaDownloadFailed)
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New("no media in response"), "media check", message, &chatID, username)
 		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
@@ -108,7 +109,7 @@ func Process(ctx context.Context, b *bot.Bot, st *store.Store, chatID int64, mes
 			processTweetImageFallback(ctx, b, st, chatID, message, plat, username, firstName)
 			return
 		}
-		telegramapi.SendText(ctx, b, chatID, "Не удалось скачать медиа. Попробуйте еще раз.")
+		telegramapi.SendText(ctx, b, chatID, messages.MediaDownloadFailed)
 		telegramapi.SendErrorToAdmin(ctx, b, errors.New("media items had no usable url"), "media check", message, &chatID, username)
 		st.RecordDownloadLogged(chatID, message, plat, "unknown", false, username, firstName)
 		return
@@ -166,7 +167,7 @@ func processTweetImageFallback(ctx context.Context, b *bot.Bot, st *store.Store,
 
 	imgBuf, err := convertTweetToImage(ctx, message)
 	if err != nil || len(imgBuf) == 0 {
-		telegramapi.SendText(ctx, b, chatID, "Не удалось конвертировать твит в изображение.")
+		telegramapi.SendText(ctx, b, chatID, messages.TweetImageFailed)
 		if err == nil {
 			err = errors.New("tweet to image conversion returned no data")
 		}

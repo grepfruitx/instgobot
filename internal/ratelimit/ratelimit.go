@@ -1,11 +1,10 @@
 package ratelimit
 
 import (
-	"context"
 	"fmt"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/grepfruitx/instgobot/internal/cache"
 )
 
 const (
@@ -17,11 +16,11 @@ const (
 )
 
 type Limiter struct {
-	rdb *redis.Client
+	c *cache.Cache
 }
 
-func New(rdb *redis.Client) *Limiter {
-	return &Limiter{rdb: rdb}
+func New(c *cache.Cache) *Limiter {
+	return &Limiter{c: c}
 }
 
 type Result struct {
@@ -29,70 +28,39 @@ type Result struct {
 	ResetTime time.Time
 }
 
-func (l *Limiter) CheckGeneral(ctx context.Context, userID int64) (Result, error) {
-	key := fmt.Sprintf("rl:general:%d", userID)
-
-	count, err := l.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return Result{}, err
-	}
-	if count == 1 {
-		if err := l.rdb.Expire(ctx, key, GeneralWindow).Err(); err != nil {
-			return Result{}, err
-		}
-	}
+func (l *Limiter) CheckGeneral(userID int64) Result {
+	count, ttl := l.c.Incr(fmt.Sprintf("rl:general:%d", userID), GeneralWindow)
 	if count > GeneralLimit {
-		ttl, err := l.rdb.TTL(ctx, key).Result()
-		if err != nil {
-			return Result{}, err
-		}
-		return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}, nil
+		return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}
 	}
-	return Result{Allowed: true}, nil
+	return Result{Allowed: true}
 }
 
-func (l *Limiter) checkOncePer(ctx context.Context, key string, window time.Duration, isAdmin bool) (Result, error) {
+func (l *Limiter) checkOncePer(key string, window time.Duration, isAdmin bool) Result {
 	if isAdmin {
-		return Result{Allowed: true}, nil
+		return Result{Allowed: true}
 	}
-
-	ok, err := l.rdb.SetNX(ctx, key, "1", window).Result()
-	if err != nil {
-		return Result{}, err
+	if ok, ttl := l.c.SetNX(key, true, window); !ok {
+		return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}
 	}
-	if ok {
-		return Result{Allowed: true}, nil
-	}
-
-	ttl, err := l.rdb.TTL(ctx, key).Result()
-	if err != nil {
-		return Result{}, err
-	}
-	return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}, nil
+	return Result{Allowed: true}
 }
 
-func (l *Limiter) CheckTelegramStories(ctx context.Context, userID int64, isAdmin bool) (Result, error) {
-	return l.checkOncePer(ctx, fmt.Sprintf("rl:tgstories:%d", userID), TelegramStoriesWindow, isAdmin)
+func (l *Limiter) CheckTelegramStories(userID int64, isAdmin bool) Result {
+	return l.checkOncePer(fmt.Sprintf("rl:tgstories:%d", userID), TelegramStoriesWindow, isAdmin)
 }
 
-func (l *Limiter) CheckYouTube(ctx context.Context, userID int64, isAdmin bool) (Result, error) {
-	return l.checkOncePer(ctx, fmt.Sprintf("rl:youtube:%d", userID), YouTubeWindow, isAdmin)
+func (l *Limiter) CheckYouTube(userID int64, isAdmin bool) Result {
+	return l.checkOncePer(fmt.Sprintf("rl:youtube:%d", userID), YouTubeWindow, isAdmin)
 }
 
-func (l *Limiter) peekOncePer(ctx context.Context, key string) (Result, error) {
-	ttl, err := l.rdb.TTL(ctx, key).Result()
-	if err != nil {
-		return Result{}, err
+func (l *Limiter) PeekYouTube(userID int64, isAdmin bool) Result {
+	if isAdmin {
+		return Result{Allowed: true}
 	}
+	ttl := l.c.TTL(fmt.Sprintf("rl:youtube:%d", userID))
 	if ttl <= 0 {
-		return Result{Allowed: true}, nil
+		return Result{Allowed: true}
 	}
-	return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}, nil
-}
-
-func (l *Limiter) PeekYouTube(ctx context.Context, userID int64, isAdmin bool) (Result, error) {
-	if isAdmin {
-		return Result{Allowed: true}, nil
-	}
-	return l.peekOncePer(ctx, fmt.Sprintf("rl:youtube:%d", userID))
+	return Result{Allowed: false, ResetTime: time.Now().Add(ttl)}
 }

@@ -526,3 +526,32 @@ func TestClearCacheAlsoDropsManifest(t *testing.T) {
 		t.Fatal("manifest survived ClearCache")
 	}
 }
+
+func TestPragmasApplyToEveryPooledConnection(t *testing.T) {
+	s := newTestStore(t)
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		t.Fatalf("DB: %v", err)
+	}
+
+	ctx := t.Context()
+	for i := range 3 {
+		conn, err := sqlDB.Conn(ctx)
+		if err != nil {
+			t.Fatalf("Conn: %v", err)
+		}
+		defer conn.Close()
+
+		var timeout int
+		if err := conn.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&timeout); err != nil {
+			t.Fatalf("busy_timeout: %v", err)
+		}
+		var mode string
+		if err := conn.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&mode); err != nil {
+			t.Fatalf("journal_mode: %v", err)
+		}
+		if timeout != 5000 || mode != "wal" {
+			t.Fatalf("conn %d: busy_timeout=%d journal_mode=%s", i, timeout, mode)
+		}
+	}
+}

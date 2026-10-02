@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
 
@@ -56,7 +57,7 @@ func PostJSON(ctx context.Context, url string, payload any, timeout time.Duratio
 	if err != nil {
 		cancel()
 		if reqCtx.Err() == context.DeadlineExceeded {
-			return nil, &telegramapi.MediaFetchError{Reason: "Превышено время ожидания ответа сервера."}
+			return nil, &telegramapi.MediaFetchError{Reason: messages.FetchResponseTimeout}
 		}
 		return nil, err
 	}
@@ -78,10 +79,10 @@ func FetchWithTimeout(ctx context.Context, url string, timeout time.Duration) (*
 	if err != nil {
 		cancel()
 		if reqCtx.Err() == context.DeadlineExceeded {
-			return nil, &telegramapi.MediaFetchError{Reason: "Превышено время ожидания загрузки файла."}
+			return nil, &telegramapi.MediaFetchError{Reason: messages.FetchBodyTimeout}
 		}
 		if strings.Contains(err.Error(), "stopped after") && strings.Contains(err.Error(), "redirect") {
-			return nil, &telegramapi.MediaFetchError{Reason: "Ссылка содержит слишком много перенаправлений."}
+			return nil, &telegramapi.MediaFetchError{Reason: messages.FetchTooManyRedirects}
 		}
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func FetchMediaResponse(ctx context.Context, url string, skipSizeCheck bool) (*h
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
-		return nil, &telegramapi.MediaFetchError{Reason: fmt.Sprintf("Сервер вернул ошибку %d.", resp.StatusCode)}
+		return nil, &telegramapi.MediaFetchError{Reason: fmt.Sprintf(messages.FetchBadStatusFmt, resp.StatusCode)}
 	}
 	if !skipSizeCheck {
 		if cl := resp.Header.Get("Content-Length"); cl != "" {

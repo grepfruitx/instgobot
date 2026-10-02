@@ -11,12 +11,13 @@ import (
 	"github.com/gotd/td/tg"
 
 	"github.com/grepfruitx/instgobot/internal/config"
+	"github.com/grepfruitx/instgobot/internal/messages"
 	"github.com/grepfruitx/instgobot/internal/telegramapi"
 )
 
 func (h *Handler) genericStoriesFailure(ctx context.Context, chatID int64, loading *loadingHandle, sourceURL string, username *string, err error) bool {
 	loading.delete(ctx)
-	h.sendText(ctx, chatID, fmt.Sprintf("Ошибка при загрузке сторис. Попробуйте позже.\n%s", config.BotTag))
+	h.sendText(ctx, chatID, fmt.Sprintf(messages.StoriesErrorFmt, config.BotTag))
 	if err != nil {
 		telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram stories download", "", &chatID, username)
 	}
@@ -26,7 +27,7 @@ func (h *Handler) genericStoriesFailure(ctx context.Context, chatID int64, loadi
 
 func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username string, storyID int) bool {
 	sourceURL := fmt.Sprintf("t.me/%s/s/%d", username, storyID)
-	loading := h.startLoading(ctx, chatID, "Загружаю сторис...")
+	loading := h.startLoading(ctx, chatID, messages.StoriesLoading)
 
 	peer, err := h.client.Peers().Resolve(ctx, username)
 	if err != nil {
@@ -42,7 +43,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 
 	if len(result.Stories) == 0 {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Сторис #%d не найдена у @%s.\n%s", storyID, username, config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.StoryNotFoundFmt, storyID, username, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
@@ -56,14 +57,14 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 	}
 	if !ok {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Сторис #%d не содержит медиа.\n%s", storyID, config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.StoryNoMediaFmt, storyID, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
 
 	if err := checkSize(size); err != nil {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.StoryTooLargeFmt, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, sourceURL, "telegram", "story", false, &username, nil)
 		return false
 	}
@@ -81,7 +82,7 @@ func (h *Handler) DownloadStoryByID(ctx context.Context, chatID int64, username 
 }
 
 func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username string) bool {
-	loading := h.startLoading(ctx, chatID, "Загружаю сторис...")
+	loading := h.startLoading(ctx, chatID, messages.StoriesLoading)
 
 	peer, err := h.client.Peers().Resolve(ctx, username)
 	if err != nil {
@@ -96,7 +97,7 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 	if len(result.Stories.Stories) == 0 {
 		loading.delete(ctx)
 		h.sendText(ctx, chatID, fmt.Sprintf(
-			"Не удалось найти публичные сторис у @%s. Возможно, пользователь скрыл свои сторис или у него нет публичных сторис.\n%s",
+			messages.StoriesNotFoundFmt,
 			username, config.BotTag,
 		))
 		h.st.RecordDownloadLogged(chatID, username, "telegram", "story", false, &username, nil)
@@ -146,7 +147,7 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 			continue
 		}
 		if err := checkSize(size); err != nil {
-			h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
+			h.sendText(ctx, chatID, fmt.Sprintf(messages.StoryTooLargeFmt, config.BotTag))
 			continue
 		}
 
@@ -154,7 +155,7 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 		if err != nil {
 			var tooLarge *telegramapi.FileTooLargeError
 			if errors.As(err, &tooLarge) {
-				h.sendText(ctx, chatID, fmt.Sprintf("Сторис слишком большой для загрузки (максимум 50MB).\n%s", config.BotTag))
+				h.sendText(ctx, chatID, fmt.Sprintf(messages.StoryTooLargeFmt, config.BotTag))
 			} else {
 				telegramapi.SendErrorToAdmin(ctx, h.b, err, "telegram stories download", "", &chatID, &username)
 			}
@@ -180,7 +181,7 @@ func (h *Handler) DownloadStories(ctx context.Context, chatID int64, username st
 
 	if successCount == 0 {
 		loading.delete(ctx)
-		h.sendText(ctx, chatID, fmt.Sprintf("Сторис найдены, но не удалось загрузить медиа. Возможно, они недоступны.\n%s", config.BotTag))
+		h.sendText(ctx, chatID, fmt.Sprintf(messages.StoriesMediaFailedFmt, config.BotTag))
 		h.st.RecordDownloadLogged(chatID, username, "telegram", "story", false, &username, nil)
 		return false
 	}
