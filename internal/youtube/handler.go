@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -313,19 +314,28 @@ func (h *Handler) downloadAdaptive(ctx context.Context, chatID int64, url, cache
 		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeServerBusy)
 		return nil
 	}
-	if !hasEnoughDiskSpace() {
+	if !hasEnoughDiskSpace(chosen.Size) {
 		releaseAdaptiveSlot()
 		_, _ = telegramapi.SendText(ctx, h.b, chatID, messages.YouTubeServerBusy)
 		return nil
 	}
 	defer releaseAdaptiveSlot()
 
-	tmpPath := fmt.Sprintf("%s/yt_%d_%d.mp4", os.TempDir(), time.Now().UnixMilli(), rnd)
-	defer os.Remove(tmpPath)
+	tmpBase := fmt.Sprintf("%s/yt_%d_%d", os.TempDir(), time.Now().UnixMilli(), rnd)
+	tmpPath := tmpBase + ".mp4"
+	// yt-dlp leaves per-format intermediates next to the output on failure
+	// (yt_X.f232.mp4.part, yt_X.f232.mp4.ytdl), not just tmpPath itself.
+	defer func() {
+		leftovers, _ := filepath.Glob(tmpBase + ".*")
+		for _, p := range leftovers {
+			os.Remove(p)
+		}
+	}()
 
 	if err := ytDlpMergeToDisk(ctx, h.cfg.YtDlpPath, []string{
 		"-f", fmt.Sprintf("%s+%s", chosen.VideoFormatID, chosen.AudioFormatID),
-		"--no-playlist", "--merge-output-format", "mp4", url,
+		"--no-playlist", "--merge-output-format", "mp4",
+		"--max-filesize", strconv.Itoa(maxUploadBytes), url,
 	}, tmpPath); err != nil {
 		return err
 	}

@@ -26,12 +26,14 @@ func WaitForActiveDownloads() {
 	activeJobs.Wait()
 }
 
-func hasEnoughDiskSpace() bool {
+// hasEnoughDiskSpace reserves room for a merge: yt-dlp keeps both per-format
+// intermediates on disk while writing the merged output, so ~2x the size.
+func hasEnoughDiskSpace(expectedSize int64) bool {
 	var stat unix.Statfs_t
 	if err := unix.Statfs(os.TempDir(), &stat); err != nil {
 		return true
 	}
-	return stat.Bavail*uint64(stat.Bsize) > minFreeDiskBytes
+	return stat.Bavail*uint64(stat.Bsize) > minFreeDiskBytes+2*uint64(max(expectedSize, 0))
 }
 
 func acquireAdaptiveSlot() bool {
