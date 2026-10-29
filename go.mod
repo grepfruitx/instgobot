@@ -6,7 +6,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-telegram/bot v1.22.0
 	github.com/gotd/td v0.161.0
-	github.com/grepfruitx/snapmedia-downloader v0.0.0-20260813154851-9b34659eb93a
+	github.com/grepfruitx/snapmedia-downloader v0.0.0-20261029100019-a00962f6d86c
 	github.com/pressly/goose/v3 v3.27.2
 	golang.org/x/sys v0.47.0
 	gorm.io/driver/sqlite v1.6.0
